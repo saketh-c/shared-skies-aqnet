@@ -91,11 +91,9 @@ read `research/aqnet/artifacts/SUMMARY.md` for the numbers your run produced.
 ## Authors
 
 AQNet (`research/aqnet`) and the FusionUNet deep-learning track
-(`research/deeplearning`) were designed and written by
-**[@nathantantexas](https://github.com/nathantantexas)**.
+(`research/deeplearning`) were architected and developed by **[@saketh-c](https://github.com/saketh-c)** and **[@nathantantexas](https://github.com/nathantantexas)**.
 
-Part of the Shared Skies Initiative by **[@saketh-c](https://github.com/saketh-c)**
-(Saketh Chebrolu), which also produces the live real-time PM2.5 map at
+Part of the Shared Skies Initiative, which also produces the live real-time PM2.5 map at
 [sharedskiesinitiative.org](https://sharedskiesinitiative.org/real-time-map).
 
 This repository was split out of the main Shared Skies repository so the research
