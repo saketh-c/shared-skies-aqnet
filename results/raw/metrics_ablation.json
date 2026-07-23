@@ -1,0 +1,122 @@
+{
+  "quick": false,
+  "loso_n_folds": 10,
+  "target_correction": "raw",
+  "variants": {
+    "primary": {
+      "n_features": 45,
+      "used_fold_overrides": true,
+      "loso_lofo": {
+        "r2": 0.6142623853439318,
+        "rmse": 5.272519942323923,
+        "mae": 2.871936341321354,
+        "bias": 0.035667059806913946,
+        "n": 293579
+      },
+      "bootstrap_ci": {
+        "r2": [
+          0.5455393034511534,
+          0.6801778833434186
+        ],
+        "rmse": [
+          4.641532837954714,
+          6.020964060194495
+        ]
+      }
+    },
+    "plus_demographics": {
+      "n_features": 49,
+      "used_fold_overrides": true,
+      "loso_lofo": {
+        "r2": 0.6115343826392627,
+        "rmse": 5.291131178422538,
+        "mae": 2.8933119918895613,
+        "bias": 0.07406142350023694,
+        "n": 293579
+      },
+      "bootstrap_ci": {
+        "r2": [
+          0.5416285465890158,
+          0.6788434765644102
+        ],
+        "rmse": [
+          4.64777450740679,
+          6.024777497943662
+        ]
+      },
+      "delta_r2_vs_primary": {
+        "delta_r2": -0.002728002704669108,
+        "ci95": [
+          -0.011970581325887615,
+          0.00562011604613553
+        ],
+        "n_boot": 1000,
+        "n_clusters": 340,
+        "n_rows": 293579
+      }
+    },
+    "no_external": {
+      "n_features": 35,
+      "used_fold_overrides": true,
+      "loso_lofo": {
+        "r2": 0.6108055156993506,
+        "rmse": 5.2960926513804445,
+        "mae": 2.893645996814051,
+        "bias": 0.04962351719142998,
+        "n": 293579
+      },
+      "bootstrap_ci": {
+        "r2": [
+          0.542737453971378,
+          0.676184223898619
+        ],
+        "rmse": [
+          4.663587538311688,
+          6.042636180130164
+        ]
+      },
+      "delta_r2_vs_primary": {
+        "delta_r2": -0.003456869644581251,
+        "ci95": [
+          -0.006188077861049083,
+          -0.0015010999109343072
+        ],
+        "n_boot": 1000,
+        "n_clusters": 340,
+        "n_rows": 293579
+      }
+    },
+    "no_neighbor": {
+      "n_features": 38,
+      "used_fold_overrides": false,
+      "loso_lofo": {
+        "r2": 0.6079881248693167,
+        "rmse": 5.315227373329206,
+        "mae": 2.9787790886196106,
+        "bias": -0.026372466878935897,
+        "n": 293579
+      },
+      "bootstrap_ci": {
+        "r2": [
+          0.5394314624644593,
+          0.6717273702827071
+        ],
+        "rmse": [
+          4.667472926243202,
+          6.069716533549543
+        ]
+      },
+      "delta_r2_vs_primary": {
+        "delta_r2": -0.006274260474615101,
+        "ci95": [
+          -0.01937115744840357,
+          0.009343029880660101
+        ],
+        "n_boot": 1000,
+        "n_clusters": 340,
+        "n_rows": 293579
+      }
+    }
+  },
+  "note": "plus_demographics exists ONLY as an ablation: demographic EJScreen columns are never model inputs in the primary AQNet configuration, any other stage, or any deployed model."
+}
