@@ -4,7 +4,8 @@ Historical PM2.5 reconstruction for Texas: a three-tier fusion research model th
 estimates daily ground-level PM2.5 at 0.1° resolution across the state.
 
 This is the **offline research track** of the Shared Skies Initiative. The live
-real-time map is a separate project and a separate repository. AQNet does not serve
+real-time map is a separate project and a separate repository
+([shared-skies-live-map](https://github.com/saketh-c/shared-skies-live-map)). AQNet does not serve
 it, and is deliberately free to use data sources (GEOS-CF OPeNDAP, MERRA-2 reanalysis,
 per-day kriging) whose latency makes them impractical in a live serving loop.
 
@@ -86,3 +87,17 @@ NASA GEOS-CF, and MERRA-2 (free Earthdata login) — are fetched at runtime and 
 Code-complete and verified to run end-to-end. No AQNet accuracy numbers are quoted
 anywhere in this repository because none have been finalized — run the pipeline and
 read `research/aqnet/artifacts/SUMMARY.md` for the numbers your run produced.
+
+## Authors
+
+AQNet (`research/aqnet`) and the FusionUNet deep-learning track
+(`research/deeplearning`) were designed and written by
+**[@nathantantexas](https://github.com/nathantantexas)**.
+
+Part of the Shared Skies Initiative by **[@saketh-c](https://github.com/saketh-c)**
+(Saketh Chebrolu), which also produces the live real-time PM2.5 map at
+[sharedskiesinitiative.org](https://sharedskiesinitiative.org/real-time-map).
+
+This repository was split out of the main Shared Skies repository so the research
+track could continue as its own project; the original AQNet commit history remains in
+[shared-skies-live-map](https://github.com/saketh-c/shared-skies-live-map).
