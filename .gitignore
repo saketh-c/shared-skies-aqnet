@@ -21,3 +21,6 @@ research/deeplearning/checkpoints/
 # Scratch notebooks — except the tracked Colab runner
 *.ipynb
 !research/aqnet/colab_shared_skies_aqnet.ipynb
+
+# Run-artifact archives (large binaries; small results are committed under results/)
+research/aqnet/artifacts*/

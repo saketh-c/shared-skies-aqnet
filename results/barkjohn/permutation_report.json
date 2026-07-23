@@ -1,0 +1,233 @@
+{
+  "base_r2": 0.7904587670718415,
+  "n": 5000,
+  "n_repeats": 5,
+  "seed": 0,
+  "importances": [
+    {
+      "feature": "nbr_pm25_100km",
+      "delta_r2_mean": 0.23886382820075927,
+      "delta_r2_std": 0.006518591690321197
+    },
+    {
+      "feature": "nbr_pm25_25km",
+      "delta_r2_mean": 0.15017709378216423,
+      "delta_r2_std": 0.0015817063844678135
+    },
+    {
+      "feature": "nbr_pm25_50km",
+      "delta_r2_mean": 0.1237215192260982,
+      "delta_r2_std": 0.005017021487611465
+    },
+    {
+      "feature": "rmp_proximity",
+      "delta_r2_mean": 0.05855203949741579,
+      "delta_r2_std": 0.0010551852062571608
+    },
+    {
+      "feature": "latitude",
+      "delta_r2_mean": 0.05084377120319357,
+      "delta_r2_std": 0.0016382731820145297
+    },
+    {
+      "feature": "longitude",
+      "delta_r2_mean": 0.04011160040669896,
+      "delta_r2_std": 0.0015640179347907813
+    },
+    {
+      "feature": "dist_to_coast",
+      "delta_r2_mean": 0.032960708984629085,
+      "delta_r2_std": 0.0016542763123631094
+    },
+    {
+      "feature": "dist_to_nearest_sensor",
+      "delta_r2_mean": 0.031135662935581853,
+      "delta_r2_std": 0.00042121435647945977
+    },
+    {
+      "feature": "traffic_proximity",
+      "delta_r2_mean": 0.02551569742709354,
+      "delta_r2_std": 0.001101521554992078
+    },
+    {
+      "feature": "diesel_pm_proximity",
+      "delta_r2_mean": 0.024592415121780387,
+      "delta_r2_std": 0.000659652855385276
+    },
+    {
+      "feature": "nbr_std_50km",
+      "delta_r2_mean": 0.02264912486111148,
+      "delta_r2_std": 0.0018548248293584523
+    },
+    {
+      "feature": "nbr_count_100km",
+      "delta_r2_mean": 0.014305154541977384,
+      "delta_r2_std": 0.001099727366248039
+    },
+    {
+      "feature": "humidity",
+      "delta_r2_mean": 0.011408903526525882,
+      "delta_r2_std": 0.0007131047854422208
+    },
+    {
+      "feature": "nbr_count_25km",
+      "delta_r2_mean": 0.010836498746669254,
+      "delta_r2_std": 0.00026683432495116474
+    },
+    {
+      "feature": "nbr_count_50km",
+      "delta_r2_mean": 0.010242147545217638,
+      "delta_r2_std": 0.00028595028480976625
+    },
+    {
+      "feature": "merra2_bc",
+      "delta_r2_mean": 0.009512860406140189,
+      "delta_r2_std": 0.0005234203829919221
+    },
+    {
+      "feature": "merra2_oc",
+      "delta_r2_mean": 0.009133617734720701,
+      "delta_r2_std": 0.0006011676556944898
+    },
+    {
+      "feature": "pressure",
+      "delta_r2_mean": 0.00871706719305807,
+      "delta_r2_std": 0.0003870902865313103
+    },
+    {
+      "feature": "superfund_proximity",
+      "delta_r2_mean": 0.008400680133159666,
+      "delta_r2_std": 0.000469143393460518
+    },
+    {
+      "feature": "merra2_so4",
+      "delta_r2_mean": 0.007570971910213431,
+      "delta_r2_std": 0.0004110521286461222
+    },
+    {
+      "feature": "merra2_pm25_proxy",
+      "delta_r2_mean": 0.007563071013779421,
+      "delta_r2_std": 0.00012515457779740596
+    },
+    {
+      "feature": "cams_pm25",
+      "delta_r2_mean": 0.007519665203381898,
+      "delta_r2_std": 0.0003950869584069726
+    },
+    {
+      "feature": "geoscf_pm25",
+      "delta_r2_mean": 0.0073828692568995045,
+      "delta_r2_std": 0.0003890406362414083
+    },
+    {
+      "feature": "temperature",
+      "delta_r2_mean": 0.005917018879560554,
+      "delta_r2_std": 0.0005027279828446303
+    },
+    {
+      "feature": "aod",
+      "delta_r2_mean": 0.005437511032288622,
+      "delta_r2_std": 0.0003197012121848148
+    },
+    {
+      "feature": "doy_cos",
+      "delta_r2_mean": 0.005167887389356163,
+      "delta_r2_std": 0.0003971461689984574
+    },
+    {
+      "feature": "temp_x_humidity",
+      "delta_r2_mean": 0.0043739912312042994,
+      "delta_r2_std": 0.0002326495396888244
+    },
+    {
+      "feature": "merra2_ss25",
+      "delta_r2_mean": 0.003948462857056944,
+      "delta_r2_std": 9.230532458085955e-05
+    },
+    {
+      "feature": "doy_sin",
+      "delta_r2_mean": 0.0038372585636996526,
+      "delta_r2_std": 0.0005545575110643717
+    },
+    {
+      "feature": "wind_speed",
+      "delta_r2_mean": 0.0036225297185531248,
+      "delta_r2_std": 0.0005332544652206733
+    },
+    {
+      "feature": "merra2_pblh_max",
+      "delta_r2_mean": 0.0035120254873988845,
+      "delta_r2_std": 0.00016858333741806393
+    },
+    {
+      "feature": "day_of_year",
+      "delta_r2_mean": 0.0032442264211235416,
+      "delta_r2_std": 0.00019213549859721648
+    },
+    {
+      "feature": "wind_x_temp",
+      "delta_r2_mean": 0.0030247768978173273,
+      "delta_r2_std": 0.00024164050267545722
+    },
+    {
+      "feature": "merra2_pblh",
+      "delta_r2_mean": 0.0029217387850415167,
+      "delta_r2_std": 0.0002335349835934382
+    },
+    {
+      "feature": "merra2_pblh_min",
+      "delta_r2_mean": 0.002743269655542435,
+      "delta_r2_std": 0.00015908151623986682
+    },
+    {
+      "feature": "merra2_dust25",
+      "delta_r2_mean": 0.002719520377151774,
+      "delta_r2_std": 0.00015332717070731526
+    },
+    {
+      "feature": "precipitation",
+      "delta_r2_mean": 0.0023476435779201887,
+      "delta_r2_std": 0.00016583080237088523
+    },
+    {
+      "feature": "dust",
+      "delta_r2_mean": 0.0020829637355244345,
+      "delta_r2_std": 6.308578045303084e-05
+    },
+    {
+      "feature": "hms_smoke",
+      "delta_r2_mean": 0.0013574574324386247,
+      "delta_r2_std": 0.0003269163841990452
+    },
+    {
+      "feature": "month_sin",
+      "delta_r2_mean": 0.001253489581100009,
+      "delta_r2_std": 0.0003374037860656777
+    },
+    {
+      "feature": "month",
+      "delta_r2_mean": 0.0009445789596389309,
+      "delta_r2_std": 0.00018843043425540262
+    },
+    {
+      "feature": "month_cos",
+      "delta_r2_mean": 0.0007487062995444216,
+      "delta_r2_std": 0.00010294056242387581
+    },
+    {
+      "feature": "dow_sin",
+      "delta_r2_mean": 0.0006486098538372343,
+      "delta_r2_std": 4.4597942612832014e-05
+    },
+    {
+      "feature": "dow",
+      "delta_r2_mean": 0.0006292590892744254,
+      "delta_r2_std": 4.972118943383718e-05
+    },
+    {
+      "feature": "dow_cos",
+      "delta_r2_mean": 0.00054148418521347,
+      "delta_r2_std": 6.084596082876907e-05
+    }
+  ]
+}

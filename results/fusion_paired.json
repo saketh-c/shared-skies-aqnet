@@ -1,0 +1,54 @@
+{
+ "barkjohn": {
+  "t3_vs_t1_paired_crossfit_rows": {
+   "n_rows": 216416,
+   "n_sensors": 255,
+   "r2_ref": 0.6083,
+   "r2_alt": 0.5583,
+   "delta_r2": -0.05,
+   "ci95": [
+    -0.0737,
+    -0.0243
+   ],
+   "significant": true
+  },
+  "t2_vs_t1_paired_unet_rows": {
+   "n_rows": 50688,
+   "n_sensors": 52,
+   "r2_ref": 0.5713,
+   "r2_alt": 0.5082,
+   "delta_r2": -0.0631,
+   "ci95": [
+    -0.1286,
+    -0.0022
+   ],
+   "significant": true
+  }
+ },
+ "raw": {
+  "t3_vs_t1_paired_crossfit_rows": {
+   "n_rows": 216441,
+   "n_sensors": 255,
+   "r2_ref": 0.6227,
+   "r2_alt": 0.5922,
+   "delta_r2": -0.0306,
+   "ci95": [
+    -0.0515,
+    -0.0076
+   ],
+   "significant": true
+  },
+  "t2_vs_t1_paired_unet_rows": {
+   "n_rows": 50695,
+   "n_sensors": 52,
+   "r2_ref": 0.5813,
+   "r2_alt": 0.4809,
+   "delta_r2": -0.1004,
+   "ci95": [
+    -0.1551,
+    -0.0392
+   ],
+   "significant": true
+  }
+ }
+}
