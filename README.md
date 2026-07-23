@@ -1,10 +1,10 @@
-# Shared Skies — AQNet
+# Shared Skies Initiative — AQNet
 
 Historical PM2.5 reconstruction for Texas: a three-tier fusion research model that
 estimates daily ground-level PM2.5 at 0.1° resolution across the state.
 
 This is the **offline research track** of the Shared Skies Initiative. The live
-real-time map is a separate project and a separate repository — AQNet does not serve
+real-time map is a separate project and a separate repository. AQNet does not serve
 it, and is deliberately free to use data sources (GEOS-CF OPeNDAP, MERRA-2 reanalysis,
 per-day kriging) whose latency makes them impractical in a live serving loop.
 
