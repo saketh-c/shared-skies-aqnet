@@ -1,4 +1,4 @@
-# Shared Skies Initiative — AQNet
+# Shared Skies Initiative - AQNet
 
 Historical PM2.5 reconstruction for Texas: a three-tier fusion research model that
 estimates daily ground-level PM2.5 at 0.1° resolution across the state.
