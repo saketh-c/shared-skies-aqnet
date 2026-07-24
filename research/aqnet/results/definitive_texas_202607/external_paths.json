@@ -1,0 +1,8 @@
+{
+  "quick": false,
+  "start": "2021-01-01",
+  "end": "2026-05-01",
+  "aqs": "/home/aistudent/Documents/Shared Skies Initiative/shared-skies aqnet/research/aqnet/data/aqs_daily_tx.parquet",
+  "geoscf": "/home/aistudent/Documents/Shared Skies Initiative/shared-skies aqnet/research/aqnet/data/geoscf_pm25_20210101_20260501.parquet",
+  "merra2": "/home/aistudent/Documents/Shared Skies Initiative/shared-skies aqnet/research/aqnet/data/merra2_daily_tx_20210101_20260501.parquet"
+}
