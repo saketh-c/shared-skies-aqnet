@@ -15,3 +15,5 @@ pydap          # GES DISC / GEOS-CF OPeNDAP subsetting client
 #                Phoenix; install by hand if the NLCD fractions are wanted —
 #                fetchers2.statics degrades to absent-with-flag without it.
 pytest         # tests/ (folds invariants, compose 17%-finite regression, parity)
+# xarray chunked reads in the v1 MERRA-2 reassembly path
+dask
