@@ -110,5 +110,15 @@ GEOSCF_FEATURES = ["geoscf_pm25"]
 # ── External sources ────────────────────────────────────────────────────────
 
 AQS_YEARS = list(range(2021, 2027))
+# GEOS-CF surface chemistry over OPeNDAP. Two trees are needed to span
+# DATE_START..DATE_END: the v1 assim collection stops at 2026-01-02, and the
+# v2 collection (a SIBLING of assim/, not a "_v2" suffix on the dataset name)
+# is a rolling ~1-year window that only reaches back to 2025-08-04. Neither
+# covers 2021-01-01..2026-05-01 alone, so _geoscf_month() selects per calendar
+# month at GEOSCF_V2_START. v2 also renames the field pm25_rh35_gcc ->
+# pm25_rh35; both names are in _GEOSCF_CANDIDATES.
 GEOSCF_OPENDAP = ("https://opendap.nccs.nasa.gov/dods/gmao/geos-cf/assim/"
                   "chm_tavg_1hr_g1440x721_v1")
+GEOSCF_OPENDAP_V2 = ("https://opendap.nccs.nasa.gov/dods/gmao/geos-cf/v2/ana/"
+                     "chm_tavg_1hr_glo_L1440x721_slv")
+GEOSCF_V2_START = "2026-01-01"

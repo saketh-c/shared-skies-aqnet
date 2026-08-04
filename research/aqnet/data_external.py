@@ -252,13 +252,23 @@ def fetch_aqs_daily_tx(years=None, dest=None):
 # ── GEOS-CF surface PM2.5 via OPeNDAP ───────────────────────────────────────
 
 # The GrADS dods server exposes lowercase variable names; probe defensively.
-_GEOSCF_CANDIDATES = ["pm25_rh35_gcc", "pm25_rh35_gc", "pm25"]
+# v1 publishes pm25_rh35_gcc, v2 publishes pm25_rh35 — the two trees have
+# disjoint names, so one list serves both.
+_GEOSCF_CANDIDATES = ["pm25_rh35_gcc", "pm25_rh35_gc", "pm25_rh35", "pm25"]
 
 
-def _open_geoscf():
+def _geoscf_url(lo):
+    """OPeNDAP endpoint covering the month starting at `lo` (see config)."""
+    return (config.GEOSCF_OPENDAP_V2
+            if pd.Timestamp(lo) >= pd.Timestamp(config.GEOSCF_V2_START)
+            else config.GEOSCF_OPENDAP)
+
+
+def _open_geoscf(url=None):
     import xarray as xr
+    url = url or config.GEOSCF_OPENDAP
     try:
-        return xr.open_dataset(config.GEOSCF_OPENDAP, engine="netcdf4")
+        return xr.open_dataset(url, engine="netcdf4")
     except (ValueError, ImportError, ModuleNotFoundError, OSError):
         # netCDF4's DAP client fails against this GrADS Data Server even when
         # the endpoint is up (OSError "NetCDF: I/O failure"); pydap reads it
@@ -274,7 +284,7 @@ def _open_geoscf():
         # request intermittently misparses the time axis behind NASA's load
         # balancer (raw values arrive on a garbage scale -> "year 30180").
         # With dap2:// the axis decodes identically on every open.
-        _url = config.GEOSCF_OPENDAP.replace("https://", "dap2://").replace("http://", "dap2://")
+        _url = url.replace("https://", "dap2://").replace("http://", "dap2://")
         ds = xr.open_dataset(_url, engine="pydap", decode_times=False)
         units = str(ds["time"].attrs.get("units", ""))
         if not units.startswith("days since 1-1-1"):
@@ -312,7 +322,7 @@ def _bbox_slice(da):
 
 def _geoscf_month(lo, hi):
     """One month of GEOS-CF daily-mean surface PM2.5 over Texas, or raise."""
-    ds = _open_geoscf()
+    ds = _open_geoscf(_geoscf_url(lo))
     try:
         da = ds[_geoscf_var(ds)]
         if "lev" in da.dims:
