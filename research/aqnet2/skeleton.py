@@ -245,10 +245,14 @@ def _build_loso_folds(assign, pool_mask, max_folds=None):
 
 # ── Overrides (frame2 f{fold}__{col} npz contract) ──────────────────────────
 
-def _load_override_npz(names, n_rows, k=None):
-    """First existing candidate artifact -> {fold: {col: arr}}; {} + WARNING
-    when absent (features degrade to the frame's full-pool columns -- a
-    leak-adjacent degradation that must be loud, mirroring v1)."""
+def _load_override_npz(names, n_rows, k=None, quick=False):
+    """First existing candidate artifact -> {fold: {col: arr}}.
+
+    Absence is a HARD ERROR in full mode: full-pool neighbor/t0 columns are
+    the exact v1 leak the overrides exist to close, and a full run that
+    silently degraded would still write a valid-looking oof_tier1.npz
+    (review finding). --quick may degrade with the loud v1-style warning.
+    """
     for name in names:
         path = config2.artifact(name.format(k=k) if k is not None else name)
         if os.path.exists(path):
@@ -256,6 +260,13 @@ def _load_override_npz(names, n_rows, k=None):
             _say(f"overrides loaded: {os.path.basename(path)} "
                  f"({len(ov)} folds)")
             return ov, path
+    if not quick and os.environ.get("AQNET2_ALLOW_FULLPOOL") != "1":
+        raise SystemExit(
+            f"[aqnet2] skeleton: no nbr_overrides npz found ({names}, "
+            f"k={k}) — a FULL run may not fall back to full-pool features "
+            "(fold-k FRM would leak into training). Run the features stage "
+            "first, or set AQNET2_ALLOW_FULLPOOL=1 to accept the leak "
+            "explicitly.")
     _say(f"WARNING: no nbr_overrides npz found ({names}, k={k}) -- "
          "full-pool neighbor/t0 columns will be used (leak-adjacent; run "
          "the features stage overrides first for honest OOF)")
@@ -354,12 +365,15 @@ def _fit_gpb(X, y, w, coords, groups, nbr, seed):
                            cov_fct_shape=MATERN_SHAPE,
                            gp_approx="vecchia",
                            num_neighbors=VECCHIA_NEIGHBORS,
-                           group_data=groups, likelihood="gaussian")
+                           group_data=groups, likelihood="gaussian",
+                           # gpboost >= 1.7: weights live on GPModel for the
+                           # GPBoost algorithm (Dataset weight alone raises).
+                           weights=w)
     try:
         gp_model.set_prediction_data(num_neighbors_pred=VECCHIA_NEIGHBORS)
     except Exception:  # noqa: BLE001 -- older API; defaults are fine
         pass
-    ds = gpb.Dataset(X, label=y, weight=w)
+    ds = gpb.Dataset(X, label=y)
     bst = gpb.train(params=_gpb_params(seed), train_set=ds,
                     gp_model=gp_model, num_boost_round=int(nbr))
     return bst, gp_model
@@ -889,7 +903,8 @@ def run_skeleton(quick=False, frame_path=None, folds_path=None,
         raise SystemExit("[aqnet2] skeleton: no outer folds in folds2.json")
 
     pool_mask, hold_mask, loso, loso_ov, y_by_k = {}, {}, {}, {}, {}
-    outer_ov, outer_ov_path = _load_override_npz(OUTER_OVERRIDE_NAMES, n)
+    outer_ov, outer_ov_path = _load_override_npz(OUTER_OVERRIDE_NAMES, n,
+                                                 quick=quick)
     loso_ov_paths = {}
     max_loso = QUICK_LOSO_FOLDS if quick else None
     for k in ks:
@@ -902,7 +917,7 @@ def run_skeleton(quick=False, frame_path=None, folds_path=None,
                              f"no entry for outer fold {k}")
         loso[k] = _build_loso_folds(arr, pool_mask[k], max_loso)
         loso_ov[k], loso_ov_paths[k] = _load_override_npz(
-            LOSO_OVERRIDE_NAMES, n, k=k)
+            LOSO_OVERRIDE_NAMES, n, k=k, quick=quick)
         y_by_k[k] = _system_target(frame, loso_ov[k], outer_ov.get(k), k)
 
     # Selection rows: outer ks[0] inner_role == 0 (never confirmation rows).

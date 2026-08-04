@@ -410,10 +410,29 @@ def build_stack2(start, end, grid_deg, external_paths):
     return data
 
 
+def _guard_device(dev, quick):
+    """Full-mode CPU fallback is a hard error (AQNET2_ALLOW_CPU=1 to
+    override) -- the Phoenix cu13x incident trained silently on CPU."""
+    dtype = getattr(dev, "type", str(dev))
+    if (not quick and dtype != "cuda"
+            and os.environ.get("AQNET2_ALLOW_CPU") != "1"):
+        raise SystemExit(
+            f"[aqnet2] field_res: resolved device is {dtype!r} in FULL mode "
+            "-- a full training run must not silently fall back to CPU "
+            "(cu126 wheels work on Phoenix). Set AQNET2_ALLOW_CPU=1 to "
+            "override deliberately.")
+    print(f"[aqnet2] field_res: device {dtype}", flush=True)
+    return dev
+
+
 def _stack_window(quick):
     start, end = config2.DATE_START, config2.DATE_END
     if quick:
-        start = (pd.Timestamp(end) - pd.Timedelta(days=92)).strftime("%Y-%m-%d")
+        # Fixed pre-vault summer window (matches frame2/calibrate/priors
+        # --quick). The former trailing-92-days window sat entirely inside
+        # the vault period, leaving a quick fieldres with zero trainable
+        # rows (review finding).
+        start, end = "2024-07-01", "2024-09-30"
     return start, end
 
 
@@ -736,7 +755,7 @@ def pretrain(cfg):
     if len(ds) == 0:
         raise AssertionError("no stack day has a station pixel — cannot "
                              "place crops")
-    device = md._resolve_device(torch, cfg.get("device", "auto"))
+    device = _guard_device(md._resolve_device(torch, cfg.get("device", "auto")), bool(cfg.get("quick")))
     use_amp = device.type == "cuda"
     loader = torch.utils.data.DataLoader(
         ds, batch_size=batch, shuffle=True,
@@ -1060,7 +1079,7 @@ def _sample_row_features(frame, pre_ckpt, cfg):
     feat_dim = 7 * base_width + 2 * (st_hi - st_lo) \
         + 4 * len(FOURIER_WAVELENGTHS_KM)
 
-    device = md._resolve_device(torch, cfg.get("device", "auto"))
+    device = _guard_device(md._resolve_device(torch, cfg.get("device", "auto")), bool(cfg.get("quick")))
     model = _build_field_net(torch, dl_models, in_ch=2 * n_real,
                              n_real=n_real, base_width=base_width).to(device)
     model.load_state_dict(pre_ckpt["model"])
@@ -1225,7 +1244,7 @@ def finetune(cfg, fold, shared=None):
         raise AssertionError(f"vault airlock breach in fieldres training "
                              f"rows: {sorted(breach)[:5]}")
 
-    device = md._resolve_device(torch, cfg.get("device", "auto"))
+    device = _guard_device(md._resolve_device(torch, cfg.get("device", "auto")), bool(cfg.get("quick")))
     torch.manual_seed(seed + 1000 * k + j)
     in_dim = shared["X"].shape[1]
     head = _build_inr_head(torch, in_dim).to(device)
@@ -1245,6 +1264,11 @@ def finetune(cfg, fold, shared=None):
                 "in_dim": in_dim, "n_train_rows": n_tr,
                 "pretrain_ckpt": shared["pre_path"],
                 "f2_source": shared["f2_source"], "seed": seed}
+    # In-progress checkpoints go to a .part path: out_path itself exists
+    # ONLY when the head is fully trained, so the exists-means-complete skip
+    # above stays truthful across embers preemptions (review finding: a
+    # half-trained head saved AT out_path would be mistaken for done).
+    part_path = out_path + ".part"
     last_save = time.time()
     for ep in range(epochs):
         head.train()
@@ -1265,16 +1289,17 @@ def finetune(cfg, fold, shared=None):
             tot += float(loss.item())
             nb += 1
             if time.time() - last_save > CKPT_EVERY_SEC:
-                _save_ckpt(torch, out_path, head, optimizer, scheduler, None,
-                           ep - 1, ckpt_cfg, [k, j])
+                _save_ckpt(torch, part_path, head, optimizer, scheduler,
+                           None, ep - 1, ckpt_cfg, [k, j])
                 last_save = time.time()
         scheduler.step()
         if ep == 0 or ep == epochs - 1:
             _say(f"fieldres f{k}_{j} epoch {ep + 1}/{epochs} "
                  f"wNLL={tot / max(nb, 1):.4f} (n={n_tr:,})")
-        _save_ckpt(torch, out_path, head, optimizer, scheduler, None, ep,
+        _save_ckpt(torch, part_path, head, optimizer, scheduler, None, ep,
                    ckpt_cfg, [k, j])
         last_save = time.time()
+    os.replace(part_path, out_path)
     return out_path
 
 

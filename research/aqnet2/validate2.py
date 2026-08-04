@@ -606,14 +606,24 @@ def _p3_exceedance(frame, exceed_npz, exceed_model, heldout):
     out = {"n_rows": int(rows.sum()),
            "n_excluded_channel_reconstructed": int((heldout & recon).sum())}
     for thr, (key, prob) in sorted(probs.items()):
-        tau, tau_src = _frozen_tau(exceed_model, thr)
         p = np.asarray(prob, dtype=np.float64)
         if len(p) != len(frame):
             raise ValueError(f"oof_exceed.npz[{key}] has length {len(p)}, "
                              f"expected {len(frame)}")
         ok = rows & np.isfinite(p)
         label = y[ok] > thr
-        flag = p[ok] >= tau
+        # PRIMARY: the shipped flag_{thr} array — exceed.py bakes the
+        # per-outer-fold FROZEN decision thresholds into it. Recomputing at
+        # a scalar tau (0.5 fallback) mis-scores the head exactly in the
+        # rare-event regime (review finding: compressed isotonic probs make
+        # tau=0.5 report recall ~ 0 for a head that performs well).
+        flag_key = key.replace("prob", "flag", 1)
+        if flag_key in exceed_npz and flag_key != key:
+            flag = np.asarray(exceed_npz[flag_key])[ok] > 0
+            tau, tau_src = None, f"npz_flag:{flag_key}"
+        else:
+            tau, tau_src = _frozen_tau(exceed_model, thr)
+            flag = p[ok] >= tau
         entry = _prf(label, flag)
         entry.update({"threshold_ugm3": thr, "prob_key": key,
                       "decision_tau": tau, "tau_source": tau_src,
@@ -736,7 +746,12 @@ def _quantile_bounds(q_npz):
 
 
 def _uq_delta(uq_params):
-    """{bin_key: delta} from uq_params.json ('delta per coverage bin')."""
+    """{bin_key: delta} from uq_params.json ('delta per coverage bin').
+
+    uq._bin_deltas writes the NESTED schema {"0": {"delta": f, ...}, ...,
+    "pooled": {...}} — flat float values are accepted too (review finding:
+    the flat-only parser silently returned an empty map and excised the
+    conformal delta from the P4 ship verdict)."""
     if not uq_params:
         _say("validate: uq_params.json absent — conformal delta 0 applied")
         return {"__pooled__": 0.0}, "absent_delta_zero"
@@ -744,10 +759,17 @@ def _uq_delta(uq_params):
                  "delta"):
         v = uq_params.get(name)
         if isinstance(v, dict):
-            return ({str(k): float(x) for k, x in v.items()
-                     if isinstance(x, (int, float))},
-                    f"uq_params.{name}")
-        if isinstance(v, (int, float)):
+            out = {}
+            for k, x in v.items():
+                if isinstance(x, dict):
+                    x = x.get("delta")
+                if isinstance(x, (int, float)) and not isinstance(x, bool) \
+                        and np.isfinite(float(x)):
+                    key = "__pooled__" if str(k) == "pooled" else str(k)
+                    out[key] = float(x)
+            if out:
+                return out, f"uq_params.{name}"
+        elif isinstance(v, (int, float)) and not isinstance(v, bool):
             return {"__pooled__": float(v)}, f"uq_params.{name}"
     _say("validate: no delta key recognized in uq_params.json — delta 0")
     return {"__pooled__": 0.0}, "unrecognized_delta_zero"
@@ -1653,9 +1675,22 @@ def run_validate(quick=False, frame_path=None, folds_path=None):
     aqs_mask = (frame["unit_type"] == "aqs").to_numpy()
     outer = np.asarray(folds["outer_fold"], dtype=np.int64)
     heldout = aqs_mask & (outer >= 0)
+    # Belt-and-braces: folds2 stamps vault-period rows outer=-1 already, but
+    # the repeatable battery must be structurally incapable of touching the
+    # vault period (only the one-shot vault stage may).
+    dts = pd.to_datetime(frame["date"]).to_numpy()
+    heldout &= dts < np.datetime64(VAULT_DATE_START)
+    # Conformal calibration units chose the P4 deltas — their rows cannot
+    # also sit in the coverage verdict (review finding: ~90% of calibration
+    # units mechanically cover, inflating the shipped number).
+    conf_unit = np.asarray(folds.get("conformal_unit", np.zeros(n)),
+                           dtype=np.int64) == 1
+    heldout_p4 = heldout & ~conf_unit
     _say(f"held-out AQS rows: {int(heldout.sum()):,} over "
          f"{int(pd.unique(frame['unit_id'].to_numpy()[heldout]).size)} "
-         f"sites, {len(np.unique(outer[heldout]))} outer folds")
+         f"sites, {len(np.unique(outer[heldout]))} outer folds "
+         f"(P4 additionally excludes {int((heldout & conf_unit).sum()):,} "
+         f"conformal-unit rows)")
 
     if "nbr_pacal_count_50km" not in frame.columns:
         raise SystemExit("[aqnet2] frame lacks nbr_pacal_count_50km — "
@@ -1685,7 +1720,20 @@ def run_validate(quick=False, frame_path=None, folds_path=None):
     metrics_outer["exceedance"] = _p3_exceedance(frame, exceed_npz,
                                                  exceed_model, heldout)
     metrics_outer["intervals"] = _p4_intervals(frame, q_npz, uq_params,
-                                               heldout, stratum_id)
+                                               heldout_p4, stratum_id)
+    # UQ lineage tripwire: the quantile band must have been fit against THIS
+    # composite (review finding: the recorded hash was never checked).
+    if uq_params and uq_params.get("fitted_against_tier_hash"):
+        import hashlib
+        comp_path = config2.artifact("oof_composite.npz")
+        with open(comp_path, "rb") as fh:
+            live = hashlib.sha256(fh.read()).hexdigest()
+        rec = str(uq_params["fitted_against_tier_hash"])
+        if rec != live:
+            _say("validate: WARNING uq quantile band lineage MISMATCH — "
+                 f"fitted_against_tier_hash {rec[:12]} != live composite "
+                 f"{live[:12]}; P4 numbers describe a STALE band")
+        metrics_outer["intervals"]["lineage_ok"] = bool(rec == live)
     metrics_outer.update(_diagnostics(frame, npz1, compv, heldout, n_boot))
     _write_json(config2.artifact("metrics_outer.json"), metrics_outer)
 

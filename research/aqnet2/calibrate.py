@@ -491,9 +491,12 @@ def _fit_gpboost(cal, os_idx, nbr, seed):
         group_rand_coef_data=tr["pa"].to_numpy(dtype=np.float64)
                                .reshape(-1, 1),
         ind_effect_group_rand_coef=[1],   # random slope on sensor_id
-        likelihood="gaussian")
-    ds = gpb.Dataset(_X(tr), label=tr["y"].to_numpy(dtype=np.float64),
-                     weight=tr["w"].to_numpy(dtype=np.float64))
+        likelihood="gaussian",
+        # gpboost >= 1.7 requires sample weights on the GPModel itself for
+        # the GPBoost algorithm (Dataset(weight=...) alone raises
+        # GPBoostError) — observed on the 2026-08-04 smoke run.
+        weights=tr["w"].to_numpy(dtype=np.float64))
+    ds = gpb.Dataset(_X(tr), label=tr["y"].to_numpy(dtype=np.float64))
     bst = gpb.train(params=_lgb_params("regression_l2", seed),
                     train_set=ds, gp_model=gp_model, num_boost_round=nbr)
     _gpb_predict(bst, cal.iloc[:5])   # API smoke check inside the try

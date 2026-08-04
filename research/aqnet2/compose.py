@@ -213,7 +213,7 @@ def _f1(tp, fp, fn):
 
 
 def admission_test(y, pred_a, pred_b, clusters, margins,
-                   n_boot=1000, seed=42):
+                   n_boot=1000, seed=42, exceed_valid=None):
     """One-sided paired unit-cluster bootstrap admission test.
 
     pred_a is the incumbent (reference), pred_b the challenger composite.
@@ -239,6 +239,14 @@ def admission_test(y, pred_a, pred_b, clusters, margins,
     margins: power_analysis.json payload / margins subdict / None (safe
     defaults). Returns a JSON-safe dict with headline "delta"/"ci" (pooled
     R2) plus per-metric detail — exactly what gates.json embeds as "test".
+
+    exceed_valid: optional bool array (len(y)) marking rows whose exceedance
+    LABEL is trustworthy. Rows with exceed_valid False keep contributing to
+    the R2 metrics but are removed from the exceedance tp/fp/fn counts —
+    the DESIGN §4 rule that channel-reconstructed PA rows never define
+    exceedance events (their high-PM values are the reconstructed ATM
+    channel, biased exactly in the event regime). With every positive
+    invalid, exceedance_f1 honestly reports as undefined and is skipped.
     """
     y = _as_f8(y, "y")
     pa = _as_f8(pred_a, "pred_a")
@@ -248,6 +256,11 @@ def admission_test(y, pred_a, pred_b, clusters, margins,
     _check_len(pa, n_in, "pred_a")
     _check_len(pb, n_in, "pred_b")
     _check_len(cl, n_in, "clusters")
+    if exceed_valid is None:
+        ev = np.ones(n_in, dtype=bool)
+    else:
+        ev = np.asarray(exceed_valid).astype(bool)
+        _check_len(ev, n_in, "exceed_valid")
     margins = _resolve_margins(margins)
 
     base = {"decision": "fail", "delta": None, "ci": [None, None],
@@ -259,7 +272,7 @@ def admission_test(y, pred_a, pred_b, clusters, margins,
     if int(ok.sum()) < 3:
         base["reasons"].append(f"only {int(ok.sum())} jointly-finite rows")
         return _jsonable(base)
-    y, pa, pb, cl = y[ok], pa[ok], pb[ok], cl[ok]
+    y, pa, pb, cl, ev = y[ok], pa[ok], pb[ok], cl[ok], ev[ok]
     n = len(y)
 
     uniq, inv = np.unique(cl, return_inverse=True)
@@ -280,14 +293,18 @@ def admission_test(y, pred_a, pred_b, clusters, margins,
     my = sy / n_c
     ma = np.bincount(inv, weights=pa) / n_c
     mb = np.bincount(inv, weights=pb) / n_c
-    exc_t = y > EXCEED_THRESHOLD
-    exc_a = pa > EXCEED_THRESHOLD
-    exc_b = pb > EXCEED_THRESHOLD
+    # Exceedance counts only on label-valid rows (exceed_valid semantics in
+    # the docstring); an all-invalid input zeroes every count and the F1
+    # metric reports undefined -> skipped, never a fabricated 0-vs-0 tie.
+    exc_t = (y > EXCEED_THRESHOLD) & ev
+    exc_a = (pa > EXCEED_THRESHOLD) & ev
+    exc_b = (pb > EXCEED_THRESHOLD) & ev
+    n_ev = int(ev.sum())
     tp_a = np.bincount(inv, weights=(exc_a & exc_t).astype(np.float64))
-    fp_a = np.bincount(inv, weights=(exc_a & ~exc_t).astype(np.float64))
+    fp_a = np.bincount(inv, weights=(exc_a & ~exc_t & ev).astype(np.float64))
     fn_a = np.bincount(inv, weights=(~exc_a & exc_t).astype(np.float64))
     tp_b = np.bincount(inv, weights=(exc_b & exc_t).astype(np.float64))
-    fp_b = np.bincount(inv, weights=(exc_b & ~exc_t).astype(np.float64))
+    fp_b = np.bincount(inv, weights=(exc_b & ~exc_t & ev).astype(np.float64))
     fn_b = np.bincount(inv, weights=(~exc_b & exc_t).astype(np.float64))
 
     # Point estimates on the full confirmation rows.
@@ -378,6 +395,7 @@ def admission_test(y, pred_a, pred_b, clusters, margins,
            "lb95": head["lb95"],
            "n_clusters": int(n_cl),
            "n_rows": int(n),
+           "n_exceed_valid": int(n_ev),
            "n_boot": int(n_boot),
            "seed": int(seed),
            "margins": margins,
@@ -442,7 +460,7 @@ class GateResult:
 
 
 def fit_gate(y, incumbent_oof, residual_oof, avail, pattern_id, stratum_id,
-             clusters, sel_mask, conf_mask, margins):
+             clusters, sel_mask, conf_mask, margins, exceed_valid=None):
     """Fit per-(pattern, stratum) gates for one tier's residual component.
 
     y             target (FRM scale), full frame length
@@ -490,6 +508,11 @@ def fit_gate(y, incumbent_oof, residual_oof, avail, pattern_id, stratum_id,
     _check_len(pattern, n, "pattern_id")
     _check_len(stratum, n, "stratum_id")
     _check_len(cl, n, "clusters")
+    if exceed_valid is None:
+        ev_all = np.ones(n, dtype=bool)
+    else:
+        ev_all = np.asarray(exceed_valid).astype(bool)
+        _check_len(ev_all, n, "exceed_valid")
     margins = _resolve_margins(margins)
 
     # ── Airlock + selection/confirmation separation ──
@@ -551,7 +574,8 @@ def fit_gate(y, incumbent_oof, residual_oof, avail, pattern_id, stratum_id,
                 challenger = inc[conf_p] + alpha_g * res[conf_p]
                 t = admission_test(y[conf_p], inc[conf_p], challenger,
                                    cl[conf_p], margins,
-                                   n_boot=1000, seed=config2.SEED)
+                                   n_boot=1000, seed=config2.SEED,
+                                   exceed_valid=ev_all[conf_p])
                 t["alpha_candidate"] = alpha_g
                 g_entry = {"alpha": alpha_g if t["decision"] == "pass"
                            else 0.0, "test": t}
@@ -589,7 +613,8 @@ def fit_gate(y, incumbent_oof, residual_oof, avail, pattern_id, stratum_id,
                     challenger = inc[conf_ps] + alpha_s * res[conf_ps]
                     t = admission_test(y[conf_ps], inc[conf_ps], challenger,
                                        cl[conf_ps], margins,
-                                       n_boot=1000, seed=config2.SEED)
+                                       n_boot=1000, seed=config2.SEED,
+                                       exceed_valid=ev_all[conf_ps])
                     t["alpha_candidate"] = alpha_s
                     s_entry = {"alpha": alpha_s if t["decision"] == "pass"
                                else 0.0, "test": t}

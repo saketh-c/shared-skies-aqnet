@@ -706,7 +706,7 @@ def fetch_merra2_slv(start, end, dest=None):
         if df is None:
             failed.append(tag)
             continue
-        df.to_parquet(cp, index=False)
+        _atomic_parquet(df, cp)   # atomic: a preempted chunk must never be trusted
         frames.append(df)
         _say(f"merra2-slv {tag}: {len(df):,} cell-days "
              f"({m + 1}/{len(edges)} months)")
@@ -747,7 +747,10 @@ def fetch_merra2_combined(start, end, dest=None):
         config2.DATA_DIR,
         f"merra2_combined_{dx._window_tag(start, end)}.parquet")
     if os.path.exists(dest) and dx._covers_window(dest, start, end) \
-            and not dx._read_failed_months(dest):
+            and not dx._read_failed_months(dest) \
+            and os.environ.get("FORCE") != "1":
+        # FORCE=1 rebuilds (review finding: SLV repairs could otherwise
+        # never propagate into a once-written combined parquet).
         _say(f"merra2-combined: using cached {dest}")
         return dest
 

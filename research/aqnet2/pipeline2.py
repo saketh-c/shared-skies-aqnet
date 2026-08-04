@@ -1138,7 +1138,7 @@ def _load_tier_npz(name, n):
 
 
 def _gate_step(y, incumbent, tier, stratum, clusters, sel, conf, margins,
-               tier_name, a100):
+               tier_name, a100, exceed_valid=None):
     """One fit_gate/apply_gates rung. Enforces the 100-km hard alpha=0
     contract (BUILD_NOTES #5) BEFORE fitting, and masks availability to rows
     where the incumbent itself is finite (a residual cannot compose onto a
@@ -1159,7 +1159,7 @@ def _gate_step(y, incumbent, tier, stratum, clusters, sel, conf, margins,
     resid = np.where(av, tier["oof_r"], np.nan)
     gate = compose.fit_gate(y, incumbent, resid, av,
                             tier["pattern_id"], stratum, clusters,
-                            sel, conf, margins)
+                            sel, conf, margins, exceed_valid=exceed_valid)
     composed = compose.apply_gates(incumbent, resid, av,
                                    tier["pattern_id"], stratum, gate)
     applied = av & np.isfinite(incumbent) & np.isfinite(composed)
@@ -1207,6 +1207,23 @@ def stage_gates(args):
              f"degraded to avail-as-declared")
         a100 = np.ones(n)
 
+    # Exceedance-label validity (DESIGN §4 / review finding): channel-
+    # reconstructed PA rows never define exceedance events — their high-PM
+    # values are the reconstructed ATM channel, biased exactly in the event
+    # regime. With admission running on PA clusters, an unmasked F1 axis
+    # would be measured entirely against labels the design declares invalid.
+    if "channel_reconstructed" in frame.columns:
+        exceed_valid = ~(np.nan_to_num(
+            frame["channel_reconstructed"].to_numpy(dtype=np.float64),
+            nan=0.0) > 0)
+        _say(f"gates: exceedance labels valid on "
+             f"{int(exceed_valid.sum()):,}/{n:,} rows "
+             f"(channel_reconstructed excluded)")
+    else:
+        exceed_valid = np.ones(n, dtype=bool)
+        _say("gates: WARNING channel_reconstructed column missing — "
+             "exceedance admission labels unmasked")
+
     f1 = np.asarray(t1["oof"], dtype=np.float64)
     gates_out, tier_mask = {}, np.zeros((n, 4), dtype=np.uint8)
     # Column 0: T0 informational (finite OOF prior at the row) — T0 is the
@@ -1218,7 +1235,8 @@ def stage_gates(args):
     current = f1
     if t2 is not None:
         gate2, current, applied2 = _gate_step(
-            y, f1, t2, stratum, clusters, sel, conf, margins, "tier2", a100)
+            y, f1, t2, stratum, clusters, sel, conf, margins, "tier2", a100,
+            exceed_valid=exceed_valid)
         gates_out["t2"] = gate2
         tier_mask[:, 1] = applied2.astype(np.uint8)
     else:
@@ -1227,7 +1245,8 @@ def stage_gates(args):
     f2 = current
     if t3 is not None:
         gate3, current, applied3 = _gate_step(
-            y, f2, t3, stratum, clusters, sel, conf, margins, "tier3", a100)
+            y, f2, t3, stratum, clusters, sel, conf, margins, "tier3", a100,
+            exceed_valid=exceed_valid)
         gates_out["t3"] = gate3
         tier_mask[:, 2] = applied3.astype(np.uint8)
     else:
@@ -1236,8 +1255,22 @@ def stage_gates(args):
     # T4 last: declared affine recalibration rung, cross-fit by cluster.
     # Its params go to t4_params.json, NEVER gates.json — "slope_clip"
     # deliberately trips compose's forbidden-key scanner (audit/03 §5).
+    # FIT rows exclude the vault (units AND period) and the conformal
+    # calibration units (review finding: an unmasked fit would let T4's
+    # slope/intercept see vault truth and contaminate the conformal set);
+    # y is NaN-masked for the fit — t4_recalibrate's fold OLS uses jointly
+    # finite rows only, while every row still RECEIVES its held-out fold's
+    # affine map.
     f3 = current
-    recal, t4_params = compose.t4_recalibrate(y, f3, clusters,
+    import folds2 as _f2mod
+    vmask = _f2mod.vault_row_mask(frame, folds)
+    cmask = np.asarray(folds.get("conformal_unit", np.zeros(n)),
+                       dtype=np.int64) == 1
+    y_t4 = y.copy()
+    y_t4[vmask | cmask] = np.nan
+    _say(f"gates: T4 fit excludes {int(vmask.sum()):,} vault rows + "
+         f"{int((cmask & ~vmask).sum()):,} conformal rows")
+    recal, t4_params = compose.t4_recalibrate(y_t4, f3, clusters,
                                               seed=config2.SEED)
     applied4 = np.isfinite(recal) & np.isfinite(f3) & (recal != f3)
     tier_mask[:, 3] = applied4.astype(np.uint8)
@@ -1545,6 +1578,19 @@ def main(argv=None):
                     help="GPU/long stages: resume from last.pt checkpoints "
                          "(chain links pass this; harmless elsewhere)")
     args = ap.parse_args(argv)
+
+    if args.quick:
+        # Quick runs get their OWN artifact namespace so a smoke pass can
+        # never satisfy a full run's sentinels or replace its checkpoints
+        # (the review-confirmed quick/full poisoning family: sentinels,
+        # folds2.json, pa_calibrated, graph/field ckpt stems all live under
+        # artifact()). config2.artifact() reads ARTIFACTS_DIR dynamically
+        # and every module uses flat `import config2`, so the rebind below
+        # covers all in-process consumers.
+        config2.ARTIFACTS_DIR = os.path.join(config2.AQNET2_DIR,
+                                             "artifacts", "v2-quick")
+        os.makedirs(config2.ARTIFACTS_DIR, exist_ok=True)
+        _say(f"--quick: artifacts redirected to {config2.ARTIFACTS_DIR}")
 
     stages = _STAGE_ORDER if args.stage == "all" else [args.stage]
     for name in stages:

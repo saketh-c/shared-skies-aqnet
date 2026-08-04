@@ -228,6 +228,10 @@ def load_pa_calibrated(path, external_paths=None, start=None, end=None):
         coords = (pa.dropna(subset=["latitude", "longitude"])
                     .drop_duplicates("sensor_id"))
         coords = coords.rename(columns={"latitude": "lat", "longitude": "lon"})
+        # calibrate writes sensor_id as str; the committed PA parquet carries
+        # int64 — normalize both sides (audited pandas-3 join hazard).
+        df["sensor_id"] = df["sensor_id"].astype(str)
+        coords["sensor_id"] = coords["sensor_id"].astype(str)
         df = df.merge(coords, on="sensor_id", how="left")
         n_bad = int(df["lat"].isna().sum())
         if n_bad:
@@ -765,9 +769,20 @@ def build_frame_truth(calibrated_parquet, external_paths, quick=False,
     # ── Vault context ──
     vault = _vault_units(folds)
     if folds is None:
+        # A no-folds frame carries vault-period rows in its pools and would
+        # still pass feature hygiene — a review-flagged foot-gun. The
+        # pipeline always supplies folds; a bootstrap frame must be opted
+        # into explicitly.
+        if os.environ.get("AQNET2_ALLOW_NOFOLDS") != "1":
+            raise SystemExit(
+                "[frame2] build_frame_truth called without folds — this "
+                "builds a vault-contaminated bootstrap frame. Build "
+                "folds2.json first (the calibrate stage does), or set "
+                "AQNET2_ALLOW_NOFOLDS=1 to accept a bootstrap frame "
+                "explicitly.")
         print("[frame2] NOTE: no folds supplied — bootstrap frame with FULL "
-              "pools; training consumption must go through "
-              "neighbor_overrides() once folds2.json exists")
+              "pools (AQNET2_ALLOW_NOFOLDS=1); training consumption must go "
+              "through neighbor_overrides() once folds2.json exists")
     fold_ctx = {"unit_ids": base["unit_id"].to_numpy()}
     if vault:
         fold_ctx["vault_units"] = sorted(vault)
@@ -854,9 +869,27 @@ def neighbor_overrides(frame, folds, fold_key):
     print(f"[frame2] per-fold override recompute: {len(fold_pairs)} folds x "
           f"{len(base):,} rows ({fold_key})")
 
+    # In the loso:{k} system, assign == -1 marks outer-fold-k AQS holdout
+    # rows (plus vault material) — folds_from_assign treats -1 as
+    # always-train, which is right for the OUTER system (PA rows are
+    # legitimate always-train pool members) but a LEAK here: fold-k FRM
+    # history would enter every within-k LOSO pool and contaminate the
+    # residuals the deep tiers fine-tune on, inside the very chain that
+    # later scores fold-k sites. Strip -1 rows from loso pools.
+    loso_system = str(fold_key).startswith("loso")
+    assign_arr = np.asarray(assign)
+
     for f, (train_idx, _test_idx) in enumerate(fold_pairs):
         ck = cal_k_of_fold(f)
-        pool_rows = base.iloc[np.asarray(train_idx)]
+        tr = np.asarray(train_idx)
+        if loso_system:
+            n_holdout = int((assign_arr[tr] == -1).sum())
+            if n_holdout and f == 0:
+                print(f"[frame2] overrides ({fold_key}): excluding "
+                      f"{n_holdout:,} always-train rows (outer-fold holdout "
+                      f"+ vault) from every pool")
+            tr = tr[assign_arr[tr] != -1]
+        pool_rows = base.iloc[tr]
         fold_ctx = {"vault_units": sorted(vault)} if vault else {}
 
         cal_col = f"pa_cal_f{ck}" if ck is not None else "pa_cal_full"

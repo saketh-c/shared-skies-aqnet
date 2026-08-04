@@ -831,19 +831,36 @@ if HAS_TORCH:
 
 # -- Training scaffolding (v1 models_deep idioms, extended per contract) -----
 
-def _resolve_device(device="auto"):
-    """v1 _resolve_device: auto -> cuda -> mps -> cpu; AMP CUDA-only."""
+def _resolve_device(device="auto", quick=False):
+    """v1 _resolve_device: auto -> cuda -> mps -> cpu; AMP CUDA-only.
+
+    In FULL mode a CPU fallback is a hard error unless AQNET2_ALLOW_CPU=1:
+    the Phoenix cu13x-wheel incident showed cuda_ok=False training silently
+    on CPU for hours (review finding + observed 2026-08-04). Quick/smoke
+    runs may use any device.
+    """
     if not HAS_TORCH:
         raise RuntimeError("torch is required for T2 training/prediction "
                            "(pip install torch)")
     if device != "auto":
-        return torch.device(device)
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    mps = getattr(torch.backends, "mps", None)
-    if mps is not None and mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
+        dev = torch.device(device)
+    elif torch.cuda.is_available():
+        dev = torch.device("cuda")
+    else:
+        mps = getattr(torch.backends, "mps", None)
+        dev = (torch.device("mps") if mps is not None and mps.is_available()
+               else torch.device("cpu"))
+    if (not quick and dev.type != "cuda"
+            and os.environ.get("AQNET2_ALLOW_CPU") != "1"):
+        raise SystemExit(
+            f"[aqnet2] graph_res: resolved device is {dev.type!r} in FULL "
+            "mode — a full training run must not silently fall back to CPU "
+            "(check the torch CUDA wheel vs the node driver; cu126 works on "
+            "Phoenix). Set AQNET2_ALLOW_CPU=1 to override deliberately.")
+    _say(f"device: {dev.type}"
+         + (f" ({torch.cuda.get_device_name(0)})" if dev.type == "cuda"
+            else ""))
+    return dev
 
 
 def _make_scheduler(optimizer, epochs, warmup_epochs=WARMUP_EPOCHS):
@@ -1279,7 +1296,7 @@ def _train_day_list(ctx, obs_st, min_obs=5):
 
 
 def _fit_setup(cfg, ctx, model, lr, epochs):
-    device = _resolve_device(cfg.get("device", "auto"))
+    device = _resolve_device(cfg.get("device", "auto"), quick=bool(cfg.get("quick")))
     torch.manual_seed(cfg["seed"])
     model = model.to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr,
@@ -1700,7 +1717,7 @@ def predict_oof(frame, folds, ckpts, cfg=None, dest=None):
         cfg["_ctx"] = ctx
     suffix = _variant_suffix(cfg)
     dest = dest or config2.artifact(f"oof_tier2{suffix}.npz")
-    device = _resolve_device(cfg.get("device", "auto"))
+    device = _resolve_device(cfg.get("device", "auto"), quick=bool(cfg.get("quick")))
     cmap = _normalize_ckpts(ckpts)
     n = len(frame)
     ru, rd = ctx["row_unit"], ctx["row_day"]
