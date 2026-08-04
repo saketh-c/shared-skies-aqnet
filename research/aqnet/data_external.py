@@ -259,9 +259,35 @@ def _open_geoscf():
     import xarray as xr
     try:
         return xr.open_dataset(config.GEOSCF_OPENDAP, engine="netcdf4")
-    except (ValueError, ImportError, ModuleNotFoundError):
-        # netCDF4 engine unavailable — let xarray pick another DAP-capable one.
-        return xr.open_dataset(config.GEOSCF_OPENDAP)
+    except (ValueError, ImportError, ModuleNotFoundError, OSError):
+        # netCDF4's DAP client fails against this GrADS Data Server even when
+        # the endpoint is up (OSError "NetCDF: I/O failure"); pydap reads it
+        # fine, but the GDS time axis ("days since 1-1-1", GrADS convention)
+        # mis-decodes through cftime and then cannot be .sel()'d with
+        # Timestamps. Open undecoded and rebuild the axis manually: GrADS day
+        # counts run one ahead of Python's proleptic-Gregorian ordinal
+        # (raw 736696.0208 == 00:30z01jan2018 == the server's own grads_min),
+        # so fromordinal(floor(v) - 1) + frac recovers the true timestamps.
+        import datetime as _dt
+
+        # Pin the DAP protocol explicitly: letting pydap auto-negotiate per
+        # request intermittently misparses the time axis behind NASA's load
+        # balancer (raw values arrive on a garbage scale -> "year 30180").
+        # With dap2:// the axis decodes identically on every open.
+        _url = config.GEOSCF_OPENDAP.replace("https://", "dap2://").replace("http://", "dap2://")
+        ds = xr.open_dataset(_url, engine="pydap", decode_times=False)
+        units = str(ds["time"].attrs.get("units", ""))
+        if not units.startswith("days since 1-1-1"):
+            ds.close()
+            raise RuntimeError(f"unexpected GEOS-CF time units: {units!r}")
+        raw = np.asarray(ds["time"].values, dtype="float64")
+        base = np.floor(raw).astype("int64") - 1
+        frac = raw - np.floor(raw)
+        times = pd.DatetimeIndex(
+            [_dt.datetime.fromordinal(int(b)) + _dt.timedelta(days=float(f))
+             for b, f in zip(base, frac)]
+        ).round("min")
+        return ds.assign_coords(time=times)
 
 
 def _geoscf_var(ds):
