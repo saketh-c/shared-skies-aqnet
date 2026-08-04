@@ -1430,19 +1430,22 @@ def _gates_parity(frame, npz1, npzs_deep, gates, comp, stratum_id):
                              f"{'npz absent' if npz is None else 'no gates'}"
                              f" — passthrough")
                 continue
-            # Raw application first (exact contract); defensive fallback
-            # recorded if the raw airlock trips.
-            res = np.asarray(npz["oof_r"], dtype=np.float64)
+            # CANONICAL application semantics — identical to pipeline2's
+            # _gate_step: availability additionally masked to rows with a
+            # finite incumbent, residual NaN-ed off-avail. Verified on the
+            # smoke run to reproduce oof_final bit-for-bit; the previous
+            # raw-first-then-defensive ordering reconstructed a DIFFERENT
+            # chain and flagged every T4-touched row as a parity mismatch.
+            res_raw = np.asarray(npz["oof_r"], dtype=np.float64)
             avail = np.asarray(npz["avail"]).astype(bool)
             pat = np.asarray(npz["pattern_id"])
-            try:
-                cur = compose.apply_gates(cur, res, avail, pat, stratum_id,
-                                          tg)
-            except AssertionError as e:
-                notes.append(f"tier{tier_no}: raw apply_gates raised "
-                             f"({e}); defensively-masked application used")
-                cur = _apply_tier(cur, npz, tg, stratum_id,
-                                  f"tier{tier_no}", notes)
+            av = avail & np.isfinite(cur)
+            n_masked = int((avail & ~av).sum())
+            if n_masked:
+                notes.append(f"tier{tier_no}: {n_masked} available rows "
+                             f"masked to finite incumbent (canonical)")
+            res = np.where(av, res_raw, np.nan)
+            cur = compose.apply_gates(cur, res, av, pat, stratum_id, tg)
     except Exception as e:
         return {"passed": None, "note": f"re-application failed: {e}",
                 "chain_notes": notes}
