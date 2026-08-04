@@ -390,7 +390,12 @@ def build_context(frame, folds, cfg, paths=None):
                   - pd.Timedelta(days=1))
     start = pd.Timestamp(config2.DATE_START)
     if quick:
-        start = end - pd.Timedelta(days=QUICK_WINDOW_DAYS)
+        # Fixed pre-vault summer window — the SAME quick window as frame2/
+        # calibrate/priors/field_res. A trailing window here intersected the
+        # quick calibrated parquet (2024 Q3) on zero days, leaving an empty
+        # station universe (smoke4 argmin crash).
+        start = pd.Timestamp("2024-07-01")
+        end = min(end, pd.Timestamp("2024-09-30"))
         _say(f"--quick: window {start.date()} .. {end.date()}")
     dates = pd.date_range(start, end, freq="D")
     n_days = len(dates)
@@ -417,6 +422,12 @@ def build_context(frame, folds, cfg, paths=None):
     breach = sorted(set(unit_ids.tolist()) & vault)
     assert not breach, f"vault units in the T2 node universe: {breach[:5]}"
     n_st = len(st_unit_ids)
+    if n_st == 0:
+        raise SystemExit(
+            f"[aqnet2] graph_res: zero PA stations in the window "
+            f"{start.date()}..{end.date()} — the raw-PA source and the "
+            "graph window do not overlap (check pa_calibrated.parquet's "
+            "window vs this stage's).")
     n_units = len(unit_ids)
     unit_index = {u: i for i, u in enumerate(unit_ids)}
     is_station = np.zeros(n_units, dtype=bool)
