@@ -1020,7 +1020,8 @@ def _vault_mask(frame, folds):
     import frame2
     vault_units = frame2._as_unit_set(folds.get("vault_sites", []))
     uid = frame["unit_id"].astype(str)
-    m = uid.isin(vault_units).to_numpy()
+    # copy: pandas-3 CoW can return read-only arrays from to_numpy()
+    m = np.array(uid.isin(vault_units).to_numpy(), copy=True)
     m |= (frame["date"] >= pd.Timestamp(VAULT_DATE_START)).to_numpy()
     return m
 

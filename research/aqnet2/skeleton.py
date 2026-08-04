@@ -218,7 +218,9 @@ def _vault_mask(frame, folds):
     """Vault rows: vault-site units + every row in the vault period."""
     vault_units = sorted("aqs_" + str(s)
                          for s in folds.get("vault_sites", []))
-    m = frame["unit_id"].isin(vault_units).to_numpy()
+    # np.array(copy=True): pandas 3 CoW can hand back read-only arrays from
+    # to_numpy(), and |= on one raises "output array is read-only".
+    m = np.array(frame["unit_id"].isin(vault_units).to_numpy(), copy=True)
     m |= (frame["date"] >= pd.Timestamp(VAULT_DATE_START)).to_numpy()
     return m
 
