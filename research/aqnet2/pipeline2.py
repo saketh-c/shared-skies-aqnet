@@ -1190,6 +1190,17 @@ def stage_gates(args):
     clusters = frame["unit_id"].astype(str).to_numpy()
     stratum = _stratum_from_frame(frame)
     sel, conf = _pooled_roles(frame, folds)
+    # Selection/admission can only happen on rows the ladder floor scores:
+    # rows without a finite T1 canonical OOF (LOSO-capped units in --quick,
+    # pool-excluded rows in full runs) are not evaluable and compose
+    # hard-asserts on them. Drop them from BOTH halves, loudly.
+    floor_ok = np.isfinite(np.asarray(t1["oof"], dtype=np.float64))
+    n_unscored = int(((sel | conf) & ~floor_ok).sum())
+    if n_unscored:
+        _say(f"gates: {n_unscored:,} sel/conf rows lack a finite T1 floor "
+             f"OOF — excluded from selection/admission (unscoreable)")
+        sel = sel & floor_ok
+        conf = conf & floor_ok
     _say(f"gates: sel rows {int(sel.sum()):,} / conf rows "
          f"{int(conf.sum()):,} (clusters: {len(np.unique(clusters[sel]))} "
          f"sel / {len(np.unique(clusters[conf]))} conf)")
