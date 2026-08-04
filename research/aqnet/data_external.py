@@ -264,40 +264,71 @@ def _geoscf_url(lo):
             else config.GEOSCF_OPENDAP)
 
 
+def _time_axis_ok(ds):
+    """True when ds has a real datetime64 time axis on a plausible scale.
+
+    netCDF4 can OPEN the GrADS server successfully and still mis-decode its
+    "days since 1-1-1" axis — into cftime objects on a garbage scale (year 13,
+    year 30180) rather than raising. That only blows up later, at
+    .sel(time=<Timestamp>), with a "different calendars" TypeError. So the
+    pydap fallback below must be chosen on a BAD AXIS, not merely on an open
+    error."""
+    t = ds.variables.get("time") if hasattr(ds, "variables") else None
+    if t is None or not len(getattr(t, "values", [])):
+        return False
+    vals = np.asarray(t.values)
+    if not np.issubdtype(vals.dtype, np.datetime64):
+        return False
+    yrs = pd.DatetimeIndex([vals[0], vals[-1]]).year
+    return bool((yrs >= 2000).all() and (yrs <= 2100).all())
+
+
+def _open_geoscf_pydap(url):
+    """Open a GEOS-CF endpoint through pydap, rebuilding the time axis by hand."""
+    import xarray as xr
+
+    # netCDF4's DAP client fails against this GrADS Data Server even when
+    # the endpoint is up (OSError "NetCDF: I/O failure"); pydap reads it
+    # fine, but the GDS time axis ("days since 1-1-1", GrADS convention)
+    # mis-decodes through cftime and then cannot be .sel()'d with
+    # Timestamps. Open undecoded and rebuild the axis manually: GrADS day
+    # counts run one ahead of Python's proleptic-Gregorian ordinal
+    # (raw 736696.0208 == 00:30z01jan2018 == the server's own grads_min),
+    # so fromordinal(floor(v) - 1) + frac recovers the true timestamps.
+    import datetime as _dt
+
+    # Pin the DAP protocol explicitly: letting pydap auto-negotiate per
+    # request intermittently misparses the time axis behind NASA's load
+    # balancer (raw values arrive on a garbage scale -> "year 30180").
+    # With dap2:// the axis decodes identically on every open.
+    _url = url.replace("https://", "dap2://").replace("http://", "dap2://")
+    ds = xr.open_dataset(_url, engine="pydap", decode_times=False)
+    units = str(ds["time"].attrs.get("units", ""))
+    if not units.startswith("days since 1-1-1"):
+        ds.close()
+        raise RuntimeError(f"unexpected GEOS-CF time units: {units!r}")
+    raw = np.asarray(ds["time"].values, dtype="float64")
+    base = np.floor(raw).astype("int64") - 1
+    frac = raw - np.floor(raw)
+    times = pd.DatetimeIndex(
+        [_dt.datetime.fromordinal(int(b)) + _dt.timedelta(days=float(f))
+         for b, f in zip(base, frac)]
+    ).round("min")
+    return ds.assign_coords(time=times)
+
+
 def _open_geoscf(url=None):
+    """Open a GEOS-CF endpoint, preferring netCDF4 but validating its time axis."""
     import xarray as xr
     url = url or config.GEOSCF_OPENDAP
     try:
-        return xr.open_dataset(url, engine="netcdf4")
+        ds = xr.open_dataset(url, engine="netcdf4")
     except (ValueError, ImportError, ModuleNotFoundError, OSError):
-        # netCDF4's DAP client fails against this GrADS Data Server even when
-        # the endpoint is up (OSError "NetCDF: I/O failure"); pydap reads it
-        # fine, but the GDS time axis ("days since 1-1-1", GrADS convention)
-        # mis-decodes through cftime and then cannot be .sel()'d with
-        # Timestamps. Open undecoded and rebuild the axis manually: GrADS day
-        # counts run one ahead of Python's proleptic-Gregorian ordinal
-        # (raw 736696.0208 == 00:30z01jan2018 == the server's own grads_min),
-        # so fromordinal(floor(v) - 1) + frac recovers the true timestamps.
-        import datetime as _dt
-
-        # Pin the DAP protocol explicitly: letting pydap auto-negotiate per
-        # request intermittently misparses the time axis behind NASA's load
-        # balancer (raw values arrive on a garbage scale -> "year 30180").
-        # With dap2:// the axis decodes identically on every open.
-        _url = url.replace("https://", "dap2://").replace("http://", "dap2://")
-        ds = xr.open_dataset(_url, engine="pydap", decode_times=False)
-        units = str(ds["time"].attrs.get("units", ""))
-        if not units.startswith("days since 1-1-1"):
-            ds.close()
-            raise RuntimeError(f"unexpected GEOS-CF time units: {units!r}")
-        raw = np.asarray(ds["time"].values, dtype="float64")
-        base = np.floor(raw).astype("int64") - 1
-        frac = raw - np.floor(raw)
-        times = pd.DatetimeIndex(
-            [_dt.datetime.fromordinal(int(b)) + _dt.timedelta(days=float(f))
-             for b, f in zip(base, frac)]
-        ).round("min")
-        return ds.assign_coords(time=times)
+        return _open_geoscf_pydap(url)
+    if _time_axis_ok(ds):
+        return ds
+    ds.close()   # opened fine, but the time axis is unusable — rebuild via pydap
+    return _open_geoscf_pydap(url)
 
 
 def _geoscf_var(ds):

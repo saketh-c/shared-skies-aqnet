@@ -25,6 +25,10 @@ torch
 xarray
 netCDF4
 h5netcdf
+# pydap is REQUIRED, not optional: netCDF4's DAP client mis-decodes the GrADS
+# "days since 1-1-1" time axis on the GEOS-CF v1 tree, and _open_geoscf falls
+# back to pydap to rebuild it. Without pydap the v1 (pre-2026) fetch fails.
+pydap
 earthaccess
 
 # geostatistics + interpretability

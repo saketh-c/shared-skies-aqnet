@@ -708,7 +708,12 @@ def build_frame_truth(calibrated_parquet, external_paths, quick=False,
     ext.update(external_paths or {})
     start, end = config2.DATE_START, config2.DATE_END
     if quick:
-        start = (pd.Timestamp(end) - pd.Timedelta(days=92)).strftime("%Y-%m-%d")
+        # Fixed pre-vault summer window (v1 pipeline_colab QUICK_* convention,
+        # shared with calibrate/priors). A trailing-92-days window would land
+        # entirely inside the vault period (>= VAULT_DATE_START), where the
+        # pool airlock drops every neighbor/lag source and a quick smoke run
+        # degenerates to featureless rows.
+        start, end = "2024-07-01", "2024-09-30"
         print(f"[frame2] --quick: window {start} .. {end}")
 
     pa = load_pa_calibrated(calibrated_parquet, ext, start, end)

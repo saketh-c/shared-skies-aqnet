@@ -1,0 +1,17 @@
+# AQNet v2 additional dependencies — installed ON TOP of
+# research/aqnet/requirements.txt by slurm2/aq2-audit.sbatch's venv
+# bootstrap (the v1 file already covers numpy/pandas/sklearn/lightgbm/
+# xgboost/catboost/torch/xarray/netCDF4/earthaccess/pykrige/...).
+#
+# Every module guards these behind try-import with a printed degradation
+# message, so a partial install fails a STAGE, never an import.
+
+gpboost        # S1 KO calibration + T1 skeleton (LightGBM FE + Matern GP + REs)
+statsmodels    # calibrate MixedLM fallback form
+pyshp          # HMS smoke polygon -> 0.1 deg raster (no GDAL on PACE)
+pydap          # GES DISC / GEOS-CF OPeNDAP subsetting client
+# rasterio     # OPTIONAL: NLCD COG range reads only. Commented out because a
+#                failed wheel build would abort the whole venv bootstrap on
+#                Phoenix; install by hand if the NLCD fractions are wanted —
+#                fetchers2.statics degrades to absent-with-flag without it.
+pytest         # tests/ (folds invariants, compose 17%-finite regression, parity)

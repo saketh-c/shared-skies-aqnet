@@ -19,7 +19,13 @@ if [ ! -f "$VENV/.ok" ]; then
   source "$VENV/bin/activate"
   pip install --upgrade pip
   pip install -r "$REPO/research/aqnet/requirements.txt"
-  pip install torch --index-url https://download.pytorch.org/whl/cu128
+  # The requirements install pulls PyPI's default torch build (cu13x), which
+  # CANNOT initialize on Phoenix GPU nodes (NVIDIA driver 12.9 < CUDA 13.0;
+  # torch.cuda.is_available() returns False and training silently runs on
+  # CPU — observed 2026-08-04). Force-replace it with cu126 wheels, which
+  # the 12.9 driver supports on the RTX 6000s.
+  pip uninstall -y torch
+  pip install torch --index-url https://download.pytorch.org/whl/cu126
   touch "$VENV/.ok"
 else
   source "$VENV/bin/activate"
