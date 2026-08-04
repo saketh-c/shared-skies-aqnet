@@ -250,6 +250,24 @@ def build_results_md(run_name):
       "answered); NEI 2023 not yet published (2020 year-keyed values used).")
     a("- Temporal-holdout claims deferred to the temporally-pure pretrain "
       "variants (ABLATION_PLAN A11), per DESIGN §2.")
+    a("- Admission gates are decided on calibrated-PA unit clusters (AQS "
+      "rows are outer-held everywhere): gate deltas are a SAFETY mechanism "
+      "and are never quoted as FRM-scale effect sizes; every 'tier X "
+      "helps' claim is sourced from outer folds + vault only.")
+    a("- Admission's exceedance-F1 axis is inert under the cf_1 skip "
+      "(reconstructed labels excluded => metric undefined => honestly "
+      "skipped); tail-behavior protection at admission activates with "
+      "ABLATION_PLAN A16.")
+    a("- The bare-site arm is 5-km-denuded (nbr features beyond 5 km "
+      "remain), covers the T0+T1 core, and lower-bounds — not answers — "
+      "the unmonitored-location question (A17 registers the radius sweep).")
+    a("- Vault one-shot certifies the T1-core serving path (deep tiers "
+      "closed at serve, T4 not applied); composite increments below the "
+      "registered MDEs are not resolvable at n=50 sites.")
+    a("- Conformal coverage is a two-level empirical window, not a "
+      "finite-sample theorem; NexCP rho/tau are fixed heuristics; per-bin "
+      "deltas are monotone-enforced and bin-0 claims are suppressed when "
+      "the bin is empty.")
     return "\n".join(lines) + "\n"
 
 

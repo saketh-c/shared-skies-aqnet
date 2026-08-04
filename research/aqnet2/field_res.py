@@ -958,13 +958,19 @@ def _load_f2(frame, folds):
                          "stage first")
     with np.load(t1_path, allow_pickle=True) as z:
         t1 = np.asarray(z["oof"], dtype=np.float64)
+        # Per-system T1 arrays (oof_f{k}): head (k, j) trains on residuals
+        # from the fold-k chain ONLY, so no other fold's FRM truth reaches
+        # the chain that later scores fold-k sites (methodology-audit fix;
+        # graph_res already consumes these the same way).
+        t1_by_k = {int(key[5:]): np.asarray(z[key], dtype=np.float64)
+                   for key in z.files if key.startswith("oof_f")}
     if len(t1) != n:
         raise AssertionError(f"oof_tier1 length {len(t1)} != frame rows {n}")
 
     t2_path = config2.artifact("oof_tier2.npz")
     if not os.path.exists(t2_path):
         _say("fieldres: oof_tier2.npz absent — F2 = T1 alone (fallback)")
-        return t1, "t1_only"
+        return t1, "t1_only", t1_by_k, t1
     with np.load(t2_path) as z:
         oof_r = np.asarray(z["oof_r"], dtype=np.float64)
         avail = np.asarray(z["avail"]).astype(bool)
@@ -987,7 +993,7 @@ def _load_f2(frame, folds):
                 f2 = compose.apply_gates(t1, oof_r, avail, pattern, stratum,
                                          gates["tier2"])
                 _say("fieldres: F2 = T1 + gated T2 (gates.json)")
-                return f2, "t1_plus_gated_t2"
+                return f2, "t1_plus_gated_t2", t1_by_k, t1
         except Exception as e:
             _say(f"fieldres: gates.json unusable ({e}); provisional add")
     f2 = t1.copy()
@@ -995,7 +1001,7 @@ def _load_f2(frame, folds):
     f2[add] = t1[add] + oof_r[add]
     _say(f"fieldres: F2 = T1 + provisional alpha=1 T2 on "
          f"{int(add.sum()):,}/{n:,} rows (gates not fit yet — documented)")
-    return f2, "t1_plus_provisional_t2"
+    return f2, "t1_plus_provisional_t2", t1_by_k, t1
 
 
 def _coverage_bins(frame):
@@ -1176,9 +1182,19 @@ def _build_shared(cfg, frame=None, folds=None):
                          f" — run fieldpre first")
     pre_ckpt = _load_ckpt(torch, pre_path)
     X, ok = _sample_row_features(frame, pre_ckpt, cfg)
-    f2, f2_source = _load_f2(frame, folds)
+    f2, f2_source, t1_by_k, t1 = _load_f2(frame, folds)
     y = frame["y"].to_numpy(np.float64)
     r2 = y - f2
+    # Per-system residual targets (audit fix): head (k, j) trains on the
+    # fold-k chain's own T1 OOF, so no other fold's FRM truth enters its
+    # targets. The gated/provisional T2 part of F2 is (f2 - t1_canonical);
+    # swapping the skeleton part gives F2_k = (f2 - t1) + t1_f{k} wherever
+    # oof_f{k} is finite (NaN elsewhere -> row simply drops from that
+    # head's training mask).
+    r2_by_k = {}
+    for _k, _t1k in (t1_by_k or {}).items():
+        _f2k = (f2 - t1) + _t1k
+        r2_by_k[int(_k)] = y - _f2k
     w = frame["w"].to_numpy(np.float64)
     vault = _vault_mask(frame, folds)
     outer = np.asarray(folds["outer_fold"], dtype=int)
@@ -1187,6 +1203,7 @@ def _build_shared(cfg, frame=None, folds=None):
     inner = {int(k): np.asarray(v, dtype=int)
              for k, v in folds["inner_fold"].items()}
     return {"frame": frame, "folds": folds, "X": X, "ok": ok, "r2": r2,
+            "r2_by_k": r2_by_k,
             "w": w, "vault": vault, "outer": outer, "inner": inner,
             "f2": f2, "f2_source": f2_source, "pre_ckpt": pre_ckpt,
             "pre_path": pre_path, "variant": variant}
@@ -1228,7 +1245,9 @@ def finetune(cfg, fold, shared=None):
     if inner_k is None:
         raise AssertionError(f"folds2 inner_fold has no entry for outer {k}")
     frame = shared["frame"]
-    tr = (shared["ok"] & np.isfinite(shared["r2"]) & np.isfinite(shared["w"])
+    # Fold-k chain's own residual target when available (audit fix).
+    r2_tgt = shared.get("r2_by_k", {}).get(int(k), shared["r2"])
+    tr = (shared["ok"] & np.isfinite(r2_tgt) & np.isfinite(shared["w"])
           & (shared["w"] > 0) & ~shared["vault"]
           & (shared["outer"] != k) & (inner_k != j) & (inner_k >= 0))
     if variant == "temporal":
@@ -1254,7 +1273,7 @@ def finetune(cfg, fold, shared=None):
     scheduler, _warm = md._make_scheduler(torch, optimizer, epochs)
 
     Xt = torch.from_numpy(shared["X"][tr])
-    rt = torch.from_numpy(shared["r2"][tr].astype(np.float32))
+    rt = torch.from_numpy(r2_tgt[tr].astype(np.float32))
     wt = torch.from_numpy(shared["w"][tr].astype(np.float32))
     idx_all = np.sort(np.flatnonzero(tr))  # sorted ids, dtype-stable shuffle
     order = np.arange(len(idx_all))

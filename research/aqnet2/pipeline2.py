@@ -51,6 +51,7 @@ Run:  python research/aqnet2/pipeline2.py <stage> [--quick] [--resume]
       FORCE=1 python research/aqnet2/pipeline2.py <stage>   # re-run
 """
 import os
+import re
 import sys
 import json
 import time
@@ -1187,6 +1188,22 @@ def stage_gates(args):
     t3 = _load_tier_npz("oof_tier3.npz", n)
 
     y = frame["y"].to_numpy(dtype=np.float64)
+    # PA rows' admission truth: mean over the fold-nested calibration
+    # columns pa_cal_f{k} (each excludes fold-k pairing sites) instead of
+    # pa_cal_full (fit on ALL pairs — methodology-audit leakage fix; the
+    # full-fit column stays the frame's deployment view).
+    pa_cal_cols = sorted(c for c in frame.columns
+                         if re.fullmatch(r"pa_cal_f\d+", c))
+    if pa_cal_cols:
+        is_pa = (frame["unit_type"] == "pa").to_numpy()
+        nested = np.nanmean(
+            np.column_stack([frame[c].to_numpy(dtype=np.float64)
+                             for c in pa_cal_cols]), axis=1)
+        swap = is_pa & np.isfinite(nested)
+        y = y.copy()
+        y[swap] = nested[swap]
+        _say(f"gates: PA admission truth = mean over {len(pa_cal_cols)} "
+             f"fold-nested calibrations on {int(swap.sum()):,} rows")
     clusters = frame["unit_id"].astype(str).to_numpy()
     stratum = _stratum_from_frame(frame)
     sel, conf = _pooled_roles(frame, folds)
@@ -1208,6 +1225,39 @@ def stage_gates(args):
     if margins is None:
         _say("gates: WARNING power_analysis.json missing — compose will "
              "warn and use its default margins")
+    else:
+        # Methodology-audit fix (finding A1): if the audit stage could only
+        # produce the ANALYTIC fallback (no v1 residual arrays), recompute
+        # the margins here with the real bootstrap-MDE machinery on v2's
+        # own T1 residuals — the exact noise structure admission faces —
+        # restricted to sel/conf-eligible rows. Then HARD-CAP every
+        # non-inferiority margin: a spatial margin of 0.19 would tolerate
+        # degradation larger than v1's entire between-site skill (0.049),
+        # recreating the pathology the ladder exists to prevent.
+        src_note = str((margins.get("margins_source") or
+                        margins.get("source") or ""))
+        if "analytic" in src_note or "fallback" in src_note:
+            t1_oof = np.asarray(t1["oof"], dtype=np.float64)
+            elig = (sel | conf) & np.isfinite(y) & np.isfinite(t1_oof)
+            if int(elig.sum()) >= 100:
+                m2, detail = _power_margins(y[elig], t1_oof[elig],
+                                            clusters[elig],
+                                            n_boot=500, seed=config2.SEED)
+                margins["margins"] = m2
+                margins["margins_source"] = ("v2_t1_residual_bootstrap "
+                                             "(gates-stage recompute)")
+                margins["margins_detail_gates"] = detail
+                _say(f"gates: margins recomputed from v2 T1 residuals: {m2}")
+        caps = {"pooled_r2": 0.02, "spatial_r2": 0.02, "exceedance_f1": 0.05}
+        mm = margins.get("margins") or {}
+        capped = {k2: min(float(mm.get(k2, caps[k2])), caps[k2])
+                  for k2 in caps}
+        if capped != {k2: float(mm.get(k2, caps[k2])) for k2 in caps}:
+            _say(f"gates: margins capped to {capped} (pre-declared ceilings; "
+                 f"raw {mm})")
+        margins["margins"] = capped
+        margins["margin_caps"] = caps
+        _write_json(artifact("power_analysis.json"), margins)
 
     a100_col = "nbr_pacal_avail_100km"
     if a100_col in frame.columns:

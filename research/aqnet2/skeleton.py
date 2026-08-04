@@ -970,6 +970,9 @@ def run_skeleton(quick=False, frame_path=None, folds_path=None,
         y_by_k[k] = _system_target(frame, loso_ov[k], outer_ov.get(k), k)
 
     # Selection rows: outer ks[0] inner_role == 0 (never confirmation rows).
+    # Conformal calibration units are additionally excluded: DESIGN §10
+    # requires them disjoint from EVERY selection decision (lambda grid,
+    # A-vs-B winner), not only from gate admission — methodology-audit fix.
     k0 = ks[0]
     role0 = _per_outer(folds, "inner_role", k0)
     if role0 is None:
@@ -978,6 +981,14 @@ def run_skeleton(quick=False, frame_path=None, folds_path=None,
         sel_mask = pool_mask[k0].copy()
     else:
         sel_mask = (role0 == 0) & pool_mask[k0]
+    conf_unit_arr = folds.get("conformal_unit")
+    if conf_unit_arr is not None:
+        cmask = np.asarray(conf_unit_arr, dtype=np.int64) == 1
+        n_c = int((sel_mask & cmask).sum())
+        if n_c:
+            _say(f"selection: {n_c:,} conformal-unit rows excluded "
+                 "(disjointness with the UQ calibration set)")
+            sel_mask = sel_mask & ~cmask
 
     mt, _fus = _v1_modules()
     ctx = {

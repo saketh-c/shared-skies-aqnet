@@ -560,9 +560,30 @@ def _bin_deltas(scores_meta, alpha):
                        "n_units": int(len(sub)), "source": src}
         _say(f"bin {b} ({label}): delta={d:.4g} n_units={len(sub)} "
              f"source={src}")
+    # Monotone enforcement (methodology-audit fix): bin 0 = sparsest
+    # coverage = largest expected error. A sparse bin whose delta came out
+    # SMALLER than a denser bin's (sampling noise on ~tens of units, or
+    # the pooled fallback dominated by dense units) would under-cover
+    # exactly where the product matters. Enforce delta_0 >= delta_1 >=
+    # delta_2 by propagating the running max from dense to sparse; both
+    # raw and enforced values are recorded.
+    prev = None
+    for b in range(len(COVERAGE_BIN_LABELS) - 1, -1, -1):
+        e = out[str(b)]
+        raw = e["delta"]
+        if raw is not None:
+            enforced = raw if prev is None else max(raw, prev)
+            if enforced != raw:
+                e["delta_raw_pre_monotone"] = raw
+                e["source"] += "+monotone_raise"
+                _say(f"bin {b}: delta raised {raw:.4g} -> {enforced:.4g} "
+                     "(monotone-in-sparsity enforcement)")
+            e["delta"] = enforced
+            prev = enforced
     out["pooled"] = {"label": "all_units",
                      "delta": pooled if np.isfinite(pooled) else None,
                      "n_units": int(len(all_scores)), "source": "pooled"}
+    out["monotone_enforced"] = True
     return out
 
 

@@ -1282,7 +1282,7 @@ def _permutation_report(frame, hook, heldout, outer, quick):
 
 # ── Structural audits ───────────────────────────────────────────────────────
 
-def _monotone_report(npz1, comp):
+def _monotone_report(npz1, comp, pre_t4=None):
     """composite == T1 BIT-identical wherever no gate opened — the
     structural passthrough guarantee, audited on the shipped arrays."""
     t1 = np.asarray(npz1["oof"], dtype=np.float64)
@@ -1297,9 +1297,35 @@ def _monotone_report(npz1, comp):
         # Column 0 marks the always-on incumbent — ignore it for "closed".
         cols = cols[1:]
         convention = "column0_is_incumbent_ignored"
-    closed = mask[:, cols].sum(axis=1) == 0 if cols else \
+    # T4 (last column) is a declared global affine rung that touches every
+    # finite row when its slope != 1 — judging closure on it collapses the
+    # audited set to ~0 rows and the criterion passes vacuously
+    # (methodology-audit fix). Closure is therefore judged on the GATED
+    # tier columns only, and the invariant audited here is on the
+    # PRE-T4 chain (pre_t4, supplied by the gates-parity replay): a row
+    # whose gates are all closed must carry T1's value bit-identically
+    # into T4. The full chain incl. T4 is separately verified bit-for-bit
+    # by _gates_parity.
+    t4_col = cols[-1] if len(cols) >= 2 else None
+    gate_cols = cols[:-1] if t4_col is not None else cols
+    convention += "|closure_on_gated_columns_pre_t4"
+    closed = mask[:, gate_cols].sum(axis=1) == 0 if gate_cols else \
         np.ones(len(final), dtype=bool)
-    equal, n_diff = _bits_equal(final[closed], t1[closed])
+    ref = t1
+    audited = final
+    if pre_t4 is not None and t4_col is not None:
+        audited = np.asarray(pre_t4, dtype=np.float64)
+        convention += "|audited_array=pre_t4_chain"
+    elif t4_col is not None and bool((mask[:, t4_col] != 0).any()):
+        # T4 modified rows but no verified pre-T4 chain is available
+        # (gates parity failed upstream) — comparing final vs T1 here
+        # would produce FALSE failures. Report not-evaluable instead.
+        return {"passed": None, "tier_mask_convention": convention,
+                "n_closed_rows": int(closed.sum()),
+                "note": ("T4 active but no verified pre-T4 chain from the "
+                         "parity replay — monotone audit not evaluable; "
+                         "fix gates parity first")}
+    equal, n_diff = _bits_equal(audited[closed], ref[closed])
     open_frac = {f"col_{j}": float((mask[:, j] != 0).mean())
                  for j in range(mask.shape[1])}
     out = {"passed": bool(equal), "n_closed_rows": int(closed.sum()),
@@ -1308,7 +1334,7 @@ def _monotone_report(npz1, comp):
            "note": ("composite must be BIT-identical to T1 on every row "
                     "where all tier gates are closed/unavailable")}
     if not equal:
-        d = final[closed] - t1[closed]
+        d = audited[closed] - t1[closed]
         d = d[np.isfinite(d)]
         out["max_abs_diff_finite"] = float(np.max(np.abs(d))) if len(d) \
             else None
@@ -1457,7 +1483,8 @@ def _gates_parity(frame, folds, npz1, npzs_deep, gates, comp,
         return {"passed": True, "chain_matches": "post_t3",
                 "chain_notes": notes,
                 "note": "gates re-application reproduces oof_final "
-                        "bit-for-bit (no T4 modification present)"}
+                        "bit-for-bit (no T4 modification present)",
+                "_pre_t4_chain": cur}
     # T4 replay: t4_recalibrate is deterministic given (y, pred, clusters,
     # seed). The gates stage fits T4 on y with vault AND conformal-unit
     # rows NaN-masked (they must not influence the affine maps) — the
@@ -1482,7 +1509,8 @@ def _gates_parity(frame, folds, npz1, npzs_deep, gates, comp,
                     "chain_notes": notes,
                     "note": "oof_final == post-T3 chain + deterministic "
                             "t4_recalibrate replay (vault/conformal-masked "
-                            "fit), bit-for-bit"}
+                            "fit), bit-for-bit",
+                    "_pre_t4_chain": cur}
     except Exception as e:
         notes.append(f"t4 replay failed: {e}")
         n_diff4 = None
@@ -1778,11 +1806,19 @@ def run_validate(quick=False, frame_path=None, folds_path=None):
                 _permutation_report(frame, hook, heldout, outer, quick))
 
     # ── Structural audits ──
-    monotone = _monotone_report(npz1, comp)
-    _write_json(config2.artifact("monotone_report.json"), monotone)
+    # Parity first: its verified pre-T4 chain feeds the monotone audit
+    # (closure is judged pre-T4 so the always-on T4 affine cannot make the
+    # criterion vacuous — methodology-audit fix). The numpy chain is
+    # popped before the report is serialized.
     parity = _parity_report(frame, folds, npz1, npzs_deep, gates, comp,
                             stratum_id, ext, quick)
+    pre_t4 = None
+    ga = parity.get("gates_reapplication")
+    if isinstance(ga, dict):
+        pre_t4 = ga.pop("_pre_t4_chain", None)
     _write_json(config2.artifact("parity_report.json"), parity)
+    monotone = _monotone_report(npz1, comp, pre_t4=pre_t4)
+    _write_json(config2.artifact("monotone_report.json"), monotone)
 
     write_summary(quick)
     if not monotone.get("passed"):

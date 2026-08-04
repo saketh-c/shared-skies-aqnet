@@ -40,3 +40,23 @@ Total registered budget ≈ 150–250 GPU-h (≈ 2× the primary), embers-shaped
 `inferno` remains the named contingency for `fieldpre` only. CPU arms
 (A1–A5) run immediately after the primary CPU chain completes; GPU arms
 (A6–A11) queue after the primary GPU tiers, in the order above.
+
+## Amendments from the 2026-08-04 methodology audit (registered pre-gates)
+
+| # | Arm / action | Why | Compute |
+|---|--------------|-----|---------|
+| A12 | `fold_geometry_seeds` — 3-seed refold of folds2 + T1-only rerun | single-seed outer/vault/airshed geometry is a real variance term at 50 sites | CPU ~6 h |
+| A13 | `unit_intercept_b` — candidate B + partially-pooled MixedLM unit intercept on blend residuals | the device-nugget fix (CHANGES #8) currently lives only in demoted candidate A | CPU ~3 h |
+| A14 | `v1_rescored_frm` — v1 Tier-1 re-scored under the identical FRM protocol (DESIGN §11 contract item, deferred from the primary run: requires a v1 serve path against the v2 frame) | the single comparison a reviewer asks for first | CPU ~4 h |
+| A15 | external-product comparison — van Donkelaar V5 / EPA Downscaler surfaces scored at the vault sites (post-freeze; no refit) | positions against published products instead of only internal baselines | CPU ~2 h |
+| A16 | tail-only cf_1 refetch (flagged rows only, ~hours not days) + calibration/exceedance re-run | the smoke/high-PM regime currently rests on the reconstructed ATM channel — the single highest-value data acquisition; requires PurpleAir API spend (OWNER DECISION) | fetch hours + CPU ~3 h |
+| A17 | bare-site radius sweep (5/25/50 km denudation) + admitted-tier bare-site scoring with graph inputs masked | "5-km-denuded" must not be read as "unmonitored"; T2's 150-km graph is not neutralized by a 5-km strip | CPU+GPU ~6 h |
+
+Deviations registered (disclosed, not silently accepted): outer folds enforce
+size bounds but not the CBSA-share cap; vault stratification omits urbanicity
+(metadata absent pre-refetch); the 7-day temporal embargo is enforced by
+backward-only lags rather than a cutoff gap — temporal claims remain gated on
+the A11 temporally-pure variants; T4 is cross-fit by cluster but not nested
+per outer fold (2-parameter global affine; per-outer sensitivity to be
+reported with A12); admission's exceedance-F1 axis is inert under the cf_1
+skip (labels excluded ⇒ metric undefined ⇒ honestly skipped) until A16 runs.
