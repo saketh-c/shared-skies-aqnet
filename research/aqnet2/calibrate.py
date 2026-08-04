@@ -794,9 +794,29 @@ def _metrics(y, pred):
             "n": int(len(y))}
 
 
+def _cal_cache_dir():
+    """Preemption-resume cache for this stage's long fit loops.
+
+    embers CANCELs after the 1-h protected window (the first full calibrate
+    attempt died at 3h28 mid-LOLO); the ~124 independent refits here are
+    exactly restartable work. Per-fit results land in this dir as they
+    complete; a rerun skips them. run_calibrate removes the dir after the
+    final artifacts are written atomically."""
+    d = os.path.join(config2.ARTIFACTS_DIR, "cal_cache")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _cache_guard(y_slice):
+    """Small content check binding a cache entry to its rows."""
+    v = np.asarray(y_slice, dtype=np.float64)
+    v = v[np.isfinite(v)]
+    return float(v.sum()) if len(v) else 0.0
+
+
 def lolo_validate(pairs, pa_daily=None, aqs_daily=None, folds=None,
                   max_dist_km=PRIMARY_PAIR_KM, num_boost_round=None,
-                  seed=None, max_sites=None):
+                  seed=None, max_sites=None, cache_tag=None):
     """Leave-one-location-out over pairing AQS sites.
 
     For each site: refit the learned chain AND the refit linear baselines on
@@ -830,12 +850,29 @@ def lolo_validate(pairs, pa_daily=None, aqs_daily=None, folds=None,
     preds = {m: np.full(n, np.nan)
              for m in ("learned", "barkjohn", "barkjohn_refit", "amt_rht")}
     kinds = set()
+    cache = _cal_cache_dir() if cache_tag else None
+    y_all = cal["y"].to_numpy(dtype=np.float64)
     for s in sites:
         te = site_arr == s
         tr_frame = cal[~te].reset_index(drop=True)
         te_frame = cal[te]
         if len(tr_frame) == 0 or len(te_frame) == 0:
             continue
+        cpath = (os.path.join(cache, f"lolo_{cache_tag}_{s}.npz")
+                 if cache else None)
+        if cpath and os.path.exists(cpath):
+            try:
+                z = np.load(cpath)
+                if (int(z["n"]) == int(te.sum())
+                        and abs(float(z["guard"])
+                                - _cache_guard(y_all[te])) < 1e-6):
+                    for m in preds:
+                        preds[m][te] = z[m]
+                    kinds.update(str(z["kinds"]).split("|"))
+                    continue
+                _say(f"LOLO cache for site {s} stale -- refitting")
+            except Exception:  # unreadable cache: refit, never trust
+                pass
         model = _fit_on_frame(tr_frame, num_boost_round, seed, "learned")
         kinds.add(model.kind)
         preds["learned"][te] = model.predict(te_frame)
@@ -845,6 +882,13 @@ def lolo_validate(pairs, pa_daily=None, aqs_daily=None, folds=None,
                                 ("amt_rht", ("pa", "rh", "t"))):
             form = fit_linear_form(tr_frame, form_cols, sample_idx=os_idx)
             preds[name][te] = predict_linear_form(form, te_frame)
+        if cpath:
+            tmp = cpath + ".tmp.npz"
+            np.savez_compressed(
+                tmp, n=int(te.sum()), guard=_cache_guard(y_all[te]),
+                kinds=np.array("|".join(sorted({model.kind}))),
+                **{m: preds[m][te] for m in preds})
+            os.replace(tmp, cpath)
 
     y = cal["y"].to_numpy(dtype=np.float64)
     methods = {name: _metrics(y[scored], p[scored])
@@ -966,7 +1010,8 @@ def run_calibrate(quick=False, folds_path=None):
     # -- Gate G0 ------------------------------------------------------------
     lolo = lolo_validate(pairs, pa_daily, aqs_daily, folds,
                          max_dist_km=PRIMARY_PAIR_KM, num_boost_round=nbr,
-                         max_sites=QUICK_LOLO_MAX_SITES if quick else None)
+                         max_sites=QUICK_LOLO_MAX_SITES if quick else None,
+                         cache_tag=f"p{int(PRIMARY_PAIR_KM)}")
     production = lolo["g0"]["production_form"]
     model_form = "learned" if production == "learned" \
         else _FORM_BY_BASELINE[production]
@@ -977,7 +1022,8 @@ def run_calibrate(quick=False, folds_path=None):
     if not quick:
         sensitivity = lolo_validate(pairs, pa_daily, aqs_daily, folds,
                                     max_dist_km=SENSITIVITY_PAIR_KM,
-                                    num_boost_round=nbr)
+                                    num_boost_round=nbr,
+                                    cache_tag=f"p{int(SENSITIVITY_PAIR_KM)}")
 
     # -- Nested refits ------------------------------------------------------
     out = pa_daily[["sensor_id", "date", "pa_raw",
@@ -990,13 +1036,43 @@ def run_calibrate(quick=False, folds_path=None):
     jobs += [(f"pa_cal_f{k}_{j}", k, j) for k in ks for j in range(n_inner)]
 
     cal_var_full = None
+    cache = _cal_cache_dir()
+    guard_pa = _cache_guard(pa_daily["pa_raw"])
     for col, k, j in jobs:
+        # Preemption-resume: each nested column persists as it completes.
+        cpath = os.path.join(cache, f"nested_{model_form}_{col}.npz")
+        if os.path.exists(cpath):
+            try:
+                z = np.load(cpath)
+                if (int(z["n"]) == len(pa_daily)
+                        and abs(float(z["guard"]) - guard_pa) < 1e-6):
+                    out[col] = np.asarray(z["mean"], dtype=np.float64)
+                    if col == "pa_cal_full":
+                        cal_var_full = np.asarray(z["var"], dtype=np.float64)
+                    fits_meta[col] = json.loads(str(z["meta"]))
+                    _say(f"{col}: restored from cal_cache")
+                    continue
+                _say(f"{col}: cache stale -- refitting")
+            except Exception:
+                pass
         model = fit_calibration(pairs, pa_daily, folds, outer_k=k, inner_j=j,
                                 aqs_daily=aqs_daily,
                                 max_dist_km=PRIMARY_PAIR_KM,
                                 num_boost_round=nbr, model_form=model_form)
         mean, var = apply_calibration(model, pa_daily)
         out[col] = mean
+        _tmpc = cpath + ".tmp.npz"
+        np.savez_compressed(
+            _tmpc, n=len(pa_daily), guard=guard_pa,
+            mean=np.asarray(mean, dtype=np.float64),
+            var=np.asarray(var if col == "pa_cal_full" else [np.nan],
+                           dtype=np.float64),
+            meta=np.array(json.dumps(_jsonable(
+                {"kind": model.meta["kind"],
+                 "n_pair_days": model.meta["n_pair_days"],
+                 "n_sites": model.meta["n_sites"],
+                 "excluded_sites": model.meta["excluded_sites"]}))))
+        os.replace(_tmpc, cpath)
         if col == "pa_cal_full":
             cal_var_full = var
         fits_meta[col] = {"kind": model.meta["kind"],
@@ -1047,6 +1123,11 @@ def run_calibrate(quick=False, folds_path=None):
         json.dump(_jsonable(report), fh, indent=2)
     os.replace(tmp, dest_report)
     _say(f"wrote {dest_report}")
+    # Final artifacts are atomic and the sentinel now holds -- drop the
+    # preemption-resume cache so stale entries can never outlive the stage.
+    import shutil as _sh
+    _sh.rmtree(os.path.join(config2.ARTIFACTS_DIR, "cal_cache"),
+               ignore_errors=True)
     return 0
 
 
