@@ -363,22 +363,41 @@ def _gpb_params(seed):
 
 
 def _fit_gpb(X, y, w, coords, groups, nbr, seed):
-    gp_model = gpb.GPModel(gp_coords=coords, cov_function="matern",
-                           cov_fct_shape=MATERN_SHAPE,
-                           gp_approx="vecchia",
-                           num_neighbors=VECCHIA_NEIGHBORS,
-                           group_data=groups, likelihood="gaussian",
-                           # gpboost >= 1.7: weights live on GPModel for the
-                           # GPBoost algorithm (Dataset weight alone raises).
-                           weights=w)
+    """One GPBoost fit with a single stabilization retry.
+
+    The initial approximate NLL can go NaN on hard splits (observed on the
+    smoke run); gpboost's own guidance is a smaller learning rate. One
+    retry at lr=0.01; a second failure propagates to run_candidate_a's
+    catch, which demotes candidate A to unavailable (the pre-registered
+    escape) instead of killing the stage.
+    """
+    def _one(params):
+        gp_model = gpb.GPModel(gp_coords=coords, cov_function="matern",
+                               cov_fct_shape=MATERN_SHAPE,
+                               gp_approx="vecchia",
+                               num_neighbors=VECCHIA_NEIGHBORS,
+                               group_data=groups, likelihood="gaussian",
+                               # gpboost >= 1.7: weights live on GPModel for
+                               # the GPBoost algorithm.
+                               weights=w)
+        try:
+            gp_model.set_prediction_data(
+                num_neighbors_pred=VECCHIA_NEIGHBORS)
+        except Exception:  # noqa: BLE001 -- older API; defaults are fine
+            pass
+        ds = gpb.Dataset(X, label=y)
+        bst = gpb.train(params=params, train_set=ds,
+                        gp_model=gp_model, num_boost_round=int(nbr))
+        return bst, gp_model
+
     try:
-        gp_model.set_prediction_data(num_neighbors_pred=VECCHIA_NEIGHBORS)
-    except Exception:  # noqa: BLE001 -- older API; defaults are fine
-        pass
-    ds = gpb.Dataset(X, label=y)
-    bst = gpb.train(params=_gpb_params(seed), train_set=ds,
-                    gp_model=gp_model, num_boost_round=int(nbr))
-    return bst, gp_model
+        return _one(_gpb_params(seed))
+    except Exception as e:  # noqa: BLE001 -- numerical instability path
+        _say(f"gpboost fit unstable ({type(e).__name__}: {e}) -- one retry "
+             "at learning_rate=0.01")
+        p = dict(_gpb_params(seed))
+        p["learning_rate"] = 0.01
+        return _one(p)
 
 
 def _predict_gpb(bst, X, coords, groups):
@@ -592,6 +611,34 @@ def run_candidate_a(ctx):
 
 
 # ── Candidate B driver ──────────────────────────────────────────────────────
+
+# Guarded wrapper: any numerical failure inside candidate A (e.g. the NaN
+# initial-NLL GPBoostError observed on the smoke run, surviving even the
+# lr retry) demotes A to unavailable — the pre-registered escape — instead
+# of killing the skeleton stage. SystemExit passes through untouched.
+_candidate_a_impl = run_candidate_a
+
+
+def run_candidate_a(ctx):  # noqa: F811 — deliberate guarded rebind
+    try:
+        return _candidate_a_impl(ctx)
+    except SystemExit:
+        raise
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        _say(f"candidate A failed ({type(e).__name__}: {e}) -- demoted to "
+             "unavailable; candidate B carries the run (pre-registered)")
+        n = ctx["n"]
+        return {"available": False, "escape": False,
+                "oof_f": {k: np.full(n, np.nan) for k in ctx["ks"]},
+                "var_f": {k: np.full(n, np.nan) for k in ctx["ks"]},
+                "lambda": {"grid": list(ctx.get("lam_grid", [1.0])),
+                           "chosen": 1.0, "scores": {}},
+                "cov_pars": {}, "timings": {},
+                "notes": [f"candidate A exception: "
+                          f"{type(e).__name__}: {e}"]}
+
 
 def run_candidate_b(ctx):
     """v1 train_cv blend + per-day residual krige, per outer system.
