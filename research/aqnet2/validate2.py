@@ -1454,18 +1454,30 @@ def _gates_parity(frame, npz1, npzs_deep, gates, comp, stratum_id):
                 "note": "gates re-application reproduces oof_final "
                         "bit-for-bit (no T4 modification present)"}
     # T4 replay: t4_recalibrate is deterministic given (y, pred, clusters,
-    # seed) — if the gates stage ran it on the full frame this reproduces
-    # the shipped array exactly.
+    # seed). The gates stage fits T4 on y with vault AND conformal-unit
+    # rows NaN-masked (they must not influence the affine maps) — the
+    # replay must mirror that masking exactly or every T4-touched row
+    # bit-mismatches (observed on the smoke run).
     try:
-        y = frame["y"].to_numpy(dtype=np.float64)
+        y = frame["y"].to_numpy(dtype=np.float64).copy()
         clusters = frame["unit_id"].to_numpy()
+        try:
+            import folds2 as _f2mod
+            vmask = _f2mod.vault_row_mask(frame, folds)
+        except Exception:
+            vmask = np.zeros(len(frame), dtype=bool)
+        cmask = np.asarray(folds.get("conformal_unit",
+                                     np.zeros(len(frame))),
+                           dtype=np.int64) == 1
+        y[vmask | cmask] = np.nan
         recal, _params = compose.t4_recalibrate(y, cur, clusters)
         equal4, n_diff4 = _bits_equal(final, recal)
         if equal4:
             return {"passed": True, "chain_matches": "post_t4_replay",
                     "chain_notes": notes,
                     "note": "oof_final == post-T3 chain + deterministic "
-                            "t4_recalibrate replay, bit-for-bit"}
+                            "t4_recalibrate replay (vault/conformal-masked "
+                            "fit), bit-for-bit"}
     except Exception as e:
         notes.append(f"t4 replay failed: {e}")
         n_diff4 = None

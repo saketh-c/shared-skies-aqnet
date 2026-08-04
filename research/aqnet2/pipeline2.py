@@ -1457,13 +1457,23 @@ def predict_points(lats, lons, dates, bundle_dir=None):
     for p in fold_pkls:
         with open(p, "rb") as fh:
             b = pickle.load(fh)
-        cols = [c for c in b["features"] if c in feats_df.columns]
-        missing = [c for c in b["features"] if c not in feats_df.columns]
+        # skeleton bundle layout: {"meta": {..., "features": [...]},
+        # "fitted": fit_full result} — with the fitted dict's own feature
+        # list as the final authority.
+        feat_list = ((b.get("meta") or {}).get("features")
+                     or (b.get("fitted") or {}).get("features")
+                     or b.get("features"))
+        if not feat_list:
+            _say(f"predict_points: {os.path.basename(p)} carries no "
+                 "feature list — skipped")
+            continue
+        missing = [c for c in feat_list if c not in feats_df.columns]
         for c in missing:
             feats_df[c] = np.nan  # absent product -> NaN, models impute
         preds.append(models_tabular.predict_full(
-            b["fitted"], feats_df[b["features"]]))
-        del cols
+            b["fitted"] if "fitted" in b else b, feats_df[feat_list]))
+    if not preds:
+        raise SystemExit("[aqnet2] predict_points: no usable serving models")
     pred = np.nanmean(np.vstack(preds), axis=0)
 
     t4 = _read_json(artifact("t4_params.json"))
