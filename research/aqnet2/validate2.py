@@ -1327,7 +1327,8 @@ def _parity_report(frame, folds, npz1, npzs_deep, gates, comp, stratum_id,
     gates stage and both attempts are recorded)."""
     report = {"feature_parity": _feature_parity(frame, folds, ext, quick),
               "gates_reapplication": _gates_parity(
-                  frame, npz1, npzs_deep, gates, comp, stratum_id)}
+                  frame, folds, npz1, npzs_deep, gates, comp,
+                  stratum_id)}
     report["passed"] = bool(
         report["feature_parity"].get("passed") is True
         and report["gates_reapplication"].get("passed") is True)
@@ -1417,7 +1418,8 @@ def _feature_parity(frame, folds, ext, quick):
                      "rebuild, BIT-for-bit on a seeded inner-row sample")}
 
 
-def _gates_parity(frame, npz1, npzs_deep, gates, comp, stratum_id):
+def _gates_parity(frame, folds, npz1, npzs_deep, gates, comp,
+                  stratum_id):
     final = np.asarray(comp["oof_final"], dtype=np.float64)
     notes = []
     cur = np.asarray(npz1["oof"], dtype=np.float64)
