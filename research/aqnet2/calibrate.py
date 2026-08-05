@@ -816,7 +816,8 @@ def _cache_guard(y_slice):
 
 def lolo_validate(pairs, pa_daily=None, aqs_daily=None, folds=None,
                   max_dist_km=PRIMARY_PAIR_KM, num_boost_round=None,
-                  seed=None, max_sites=None, cache_tag=None):
+                  seed=None, max_sites=None, cache_tag=None,
+                  only_sites=None):
     """Leave-one-location-out over pairing AQS sites.
 
     For each site: refit the learned chain AND the refit linear baselines on
@@ -843,6 +844,12 @@ def lolo_validate(pairs, pa_daily=None, aqs_daily=None, folds=None,
              .index.tolist())
     if max_sites is not None:
         sites = sorted(sites[:max_sites])
+    if only_sites is not None:
+        # Shard-worker mode: fit ONLY these sites (identical inputs/seed to
+        # the full pass — the shared cal_cache makes the results fungible).
+        # The returned metrics are partial and must be discarded by the
+        # caller; the cache files are the product.
+        sites = [s for s in sites if s in set(only_sites)]
     site_arr = cal["site_id"].to_numpy()
     scored = np.isin(site_arr, sites)
 
@@ -1131,6 +1138,82 @@ def run_calibrate(quick=False, folds_path=None):
     return 0
 
 
+def warm_cache(kind, shard, n_shards, quick=False, folds_path=None):
+    """Shard worker: compute a slice of this stage's independent fits into
+    the shared cal_cache, then exit. Pure parallelization — same inputs,
+    same seeds, same code path as the assembling run; the cache guard
+    (row-count + y-checksum) rejects any divergence. kinds: 'lolo10',
+    'lolo25', 'nested'."""
+    folds = load_fold_sites(folds_path)
+    vault = vault_site_set(folds)
+    nbr = QUICK_BOOST_ROUND if quick else NUM_BOOST_ROUND
+    pairs_path = config2.artifact("colocation_pairs.parquet")
+    pairs = (pd.read_parquet(pairs_path) if os.path.exists(pairs_path)
+             else colocate.build_pairs())
+    start, end = (QUICK_START, QUICK_END) if quick else (None, None)
+    pa_daily = load_pa_daily(start=start, end=end)
+    aqs_daily = load_aqs_daily(start=start, end=end)
+    pa_daily["dist_to_nearest_frm"] = dist_to_nearest_frm(
+        pa_daily, aqs_daily, exclude_sites=vault)
+
+    def _shard(items):
+        return [x for i, x in enumerate(sorted(items))
+                if i % n_shards == shard]
+
+    if kind in ("lolo10", "lolo25"):
+        km = PRIMARY_PAIR_KM if kind == "lolo10" else SENSITIVITY_PAIR_KM
+        cal = build_cal_frame(pairs, pa_daily, aqs_daily, km)
+        cal = cal[~cal["site_id"].isin(vault)]
+        mine = _shard(cal["site_id"].unique().tolist())
+        _say(f"warm {kind} shard {shard}/{n_shards}: {len(mine)} sites")
+        lolo_validate(pairs, pa_daily, aqs_daily, folds, max_dist_km=km,
+                      num_boost_round=nbr, cache_tag=f"p{int(km)}",
+                      only_sites=mine)
+        return 0
+    if kind == "nested":
+        # model_form gamble: 'learned' is the expected G0 outcome; the cache
+        # key embeds the form, so a different verdict simply ignores these
+        # entries (wasted compute, never wrong results).
+        model_form = "learned"
+        n_inner = int(getattr(config2, "INNER_N_FOLDS", 4))
+        ks = outer_fold_ids(folds)
+        jobs = ([("pa_cal_full", None, None)]
+                + [(f"pa_cal_f{k}", k, None) for k in ks]
+                + [(f"pa_cal_f{k}_{j}", k, j)
+                   for k in ks for j in range(n_inner)])
+        mine = [jobs[i] for i in range(len(jobs)) if i % n_shards == shard]
+        _say(f"warm nested shard {shard}/{n_shards}: "
+             f"{[c for c, _, _ in mine]}")
+        cache = _cal_cache_dir()
+        guard_pa = _cache_guard(pa_daily["pa_raw"])
+        for col, k, j in mine:
+            cpath = os.path.join(cache, f"nested_{model_form}_{col}.npz")
+            if os.path.exists(cpath):
+                _say(f"{col}: already cached -- skip")
+                continue
+            model = fit_calibration(pairs, pa_daily, folds, outer_k=k,
+                                    inner_j=j, aqs_daily=aqs_daily,
+                                    max_dist_km=PRIMARY_PAIR_KM,
+                                    num_boost_round=nbr,
+                                    model_form=model_form)
+            mean, var = apply_calibration(model, pa_daily)
+            _tmpc = cpath + ".tmp.npz"
+            np.savez_compressed(
+                _tmpc, n=len(pa_daily), guard=guard_pa,
+                mean=np.asarray(mean, dtype=np.float64),
+                var=np.asarray(var if col == "pa_cal_full" else [np.nan],
+                               dtype=np.float64),
+                meta=np.array(json.dumps(_jsonable(
+                    {"kind": model.meta["kind"],
+                     "n_pair_days": model.meta["n_pair_days"],
+                     "n_sites": model.meta["n_sites"],
+                     "excluded_sites": model.meta["excluded_sites"]}))))
+            os.replace(_tmpc, cpath)
+            _say(f"{col}: cached (kind={model.meta['kind']})")
+        return 0
+    raise SystemExit(f"unknown warm kind {kind!r}")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="AQNet v2 S1 Kennedy-O'Hagan PA calibration")
@@ -1138,7 +1221,16 @@ def main(argv=None):
                     help="3-month window, fewer boosting rounds, capped LOLO")
     ap.add_argument("--folds", default=None,
                     help="path to folds2.json (default: artifacts/v2)")
+    ap.add_argument("--warm", default=None,
+                    choices=("lolo10", "lolo25", "nested"),
+                    help="shard-worker mode: fill cal_cache and exit")
+    ap.add_argument("--shard", default="0/1",
+                    help="i/n shard spec for --warm")
     args = ap.parse_args(argv)
+    if args.warm:
+        i, n = (int(x) for x in args.shard.split("/"))
+        return warm_cache(args.warm, i, n, quick=args.quick,
+                          folds_path=args.folds)
     return run_calibrate(quick=args.quick, folds_path=args.folds)
 
 
