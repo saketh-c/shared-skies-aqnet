@@ -301,16 +301,14 @@ def load_aqs_site_index(aqs_parquet=None):
     """
     path = aqs_parquet
     if path is None:
-        # fetchers2 canonical (year-window-stamped under DATA_DIR), then a
-        # hand-placed artifact copy, then the committed v1 parquet. Site
-        # set/coords/pm25 are identical across v1 and v2 copies (v2 adds
-        # metadata columns), so fold assignments are stable either way.
-        import glob as _glob
-        v2s = sorted(_glob.glob(os.path.join(
-            config2.DATA_DIR, "aqs_daily_tx_v2_*.parquet")))
+        # config2.canonical_aqs_path (external_paths registry, then the
+        # widest-window v2 parquet — NEVER sorted(glob)[-1]: a quick-window
+        # refetch stamp sorts after the full-window one and silently shrinks
+        # the site index, which Phase 2 then rejects against the frame),
+        # then a hand-placed artifact copy, then the committed v1 parquet.
         art = config2.artifact("aqs_daily_tx.parquet")
-        path = (v2s[-1] if v2s
-                else art if os.path.exists(art) else AQS_V1_PARQUET)
+        path = (config2.canonical_aqs_path()
+                or (art if os.path.exists(art) else AQS_V1_PARQUET))
     if not os.path.exists(path):
         raise FileNotFoundError(f"AQS daily parquet not found: {path}")
     aq = pd.read_parquet(path, columns=["site_id", "date", "pm25_aqs",

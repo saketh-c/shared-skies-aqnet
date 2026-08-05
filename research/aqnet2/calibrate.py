@@ -264,12 +264,12 @@ def load_aqs_daily(aqs_parquet=None, start=None, end=None):
     path = aqs_parquet
     if path is None:
         # Prefer the fetchers2-hardened v2 table (carries is_fem + urban
-        # metadata this stage's x_cal actually uses); fall back to the
-        # committed v1 parquet with the constant-column degradation below.
-        import glob as _glob
-        _v2 = sorted(_glob.glob(os.path.join(
-            config2.DATA_DIR, "aqs_daily_tx_v2_*.parquet")))
-        path = _v2[-1] if _v2 else colocate.AQS_PARQUET
+        # metadata this stage's x_cal actually uses) via the canonical
+        # widest-window resolver — sorted(glob)[-1] once picked a leftover
+        # quick-window stamp here and silently calibrated on one year of
+        # pairs; fall back to the committed v1 parquet with the
+        # constant-column degradation below.
+        path = config2.canonical_aqs_path() or colocate.AQS_PARQUET
     aq = pd.read_parquet(path)
     aq["site_id"] = aq["site_id"].astype(str)
     aq["date"] = pd.to_datetime(aq["date"]).dt.normalize()

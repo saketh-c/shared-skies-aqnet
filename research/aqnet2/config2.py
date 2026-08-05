@@ -46,6 +46,44 @@ def artifact(name, sub=""):
     return os.path.join(base, name)
 
 
+def canonical_aqs_path():
+    """The one AQS daily parquet every consumer must read, or None.
+
+    Preference: the data-stage registry (external_paths.json 'aqs' entry,
+    written under the widest-window rule), then the widest-window (never
+    lexicographically-last) v2 parquet under DATA_DIR. A narrow quick-window
+    refetch such as aqs_daily_tx_v2_2024_2024.parquet sorts AFTER the full
+    aqs_daily_tx_v2_2021_2026.parquet, so any sorted(glob)[-1] consumer
+    silently trains on one year — folds2 and calibrate both did until every
+    caller was routed through here. Callers fall back to their own committed
+    v1 defaults on None.
+    """
+    import glob as _glob
+    import json as _json
+    import re as _re
+    reg = os.path.join(ARTIFACTS_DIR, "external_paths.json")
+    try:
+        with open(reg) as fh:
+            p = _json.load(fh).get("aqs")
+        if p and os.path.exists(p):
+            return p
+    except Exception:
+        pass
+
+    def _span_mtime(p):
+        m = _re.search(r"_v2_(\d{4})_(\d{4})\.parquet$", os.path.basename(p))
+        span = (int(m.group(2)) - int(m.group(1))) if m else -1
+        try:
+            mt = os.path.getmtime(p)
+        except OSError:
+            mt = 0.0
+        return (span, mt)
+
+    v2s = sorted(_glob.glob(os.path.join(DATA_DIR, "aqs_daily_tx_v2_*.parquet")),
+                 key=_span_mtime, reverse=True)
+    return v2s[0] if v2s else None
+
+
 # ── Domain & dates (identical to v1 — the reconstruction window) ────────────
 
 TX_BBOX = {"lat_min": 25.6, "lat_max": 36.7, "lon_min": -107.0, "lon_max": -93.3}
