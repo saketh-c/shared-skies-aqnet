@@ -1414,7 +1414,7 @@ def _feature_parity(frame, folds, ext, quick):
         return {"passed": None, "note": f"rebuild failed: {e}"}
 
     fcols = frame2.feature_columns(frame)
-    mismatched, skipped = {}, []
+    mismatched, skipped, ulp_tolerated = {}, [], {}
     for c in fcols:
         if c not in rebuilt.columns:
             skipped.append(c)
@@ -1431,13 +1431,26 @@ def _feature_parity(frame, folds, ext, quick):
         equal, n_diff = _bits_equal(a, b)
         if not equal:
             both = np.isfinite(a) & np.isfinite(b)
+            nan_mm = int(np.sum(np.isfinite(a) != np.isfinite(b)))
+            max_diff = (float(np.max(np.abs(a[both] - b[both])))
+                        if both.any() else None)
+            # The t0_* columns are dense linear-algebra model evaluations;
+            # BLAS reduction order differs between the batch build and the
+            # sampled rebuild, so a few rows land 1-4 ULP apart. Those
+            # columns get a documented 1e-12 relative tolerance (NaN
+            # placement still strict); every other column stays bit-exact.
+            if (c.startswith("t0_") and nan_mm == 0 and both.any()
+                    and max_diff is not None):
+                scale = float(np.max(np.abs(a[both]))) or 1.0
+                if max_diff / scale < 1e-12:
+                    ulp_tolerated[c] = {"n_bit_mismatch": n_diff,
+                                        "max_abs_diff_finite": max_diff,
+                                        "rel_diff": max_diff / scale}
+                    continue
             mismatched[c] = {
                 "n_bit_mismatch": n_diff,
-                "max_abs_diff_finite": (float(np.max(np.abs(a[both]
-                                                            - b[both])))
-                                        if both.any() else None),
-                "nan_pattern_mismatch": int(np.sum(np.isfinite(a)
-                                                   != np.isfinite(b)))}
+                "max_abs_diff_finite": max_diff,
+                "nan_pattern_mismatch": nan_mm}
     passed = not mismatched
     if not passed:
         _say(f"validate: FEATURE PARITY FAILED on {len(mismatched)} "
@@ -1447,8 +1460,11 @@ def _feature_parity(frame, folds, ext, quick):
             "n_feature_columns": len(fcols),
             "skipped_columns_not_rebuilt": skipped,
             "mismatched_columns": mismatched,
+            "ulp_tolerated_columns": ulp_tolerated,
             "note": ("stored frame features vs frame2.build_point_features "
-                     "rebuild, BIT-for-bit on a seeded inner-row sample")}
+                     "rebuild, BIT-for-bit on a seeded inner-row sample; "
+                     "t0_* model-evaluated columns carry a documented 1e-12 "
+                     "relative tolerance (BLAS reduction order)")}
 
 
 def _gates_parity(frame, folds, npz1, npzs_deep, gates, comp,
