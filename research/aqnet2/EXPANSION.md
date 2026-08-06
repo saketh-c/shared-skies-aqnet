@@ -1,8 +1,36 @@
-# AQNet v2-multistate — pre-registered domain expansion
+# AQNet v3 — pre-registered multistate domain expansion (WEST7)
 
 Registered 2026-08-06, before any multistate data acquisition. Purpose: give
 the deep residual tiers (T2 graph-attention, T3 neural field) an admission
-test with the statistical power the Texas domain could not provide.
+test with the statistical power the Texas domain could not provide. v3 is a
+DOMAIN configuration of the v2 codebase (same pipeline, same gates), not a
+fork: `AQNET2_DOMAIN=west7`, artifacts under `artifacts/v3`.
+
+## Phase 1 amendment (owner-approved 2026-08-06): NO new PurpleAir
+
+Phase 1 runs WITHOUT PurpleAir acquisition for the six new states: Texas
+keeps its existing calibrated PA archive; the new states run on the
+portable feature set (the registered coverage-gated split — absent
+covariates stay NaN, never filled). The deep-tier admission test is powered
+by FRM clusters (~285) and pairs T2/T3 against T1 on identical rows, so it
+is valid without PA. This also sharpens the claim under test: does deep
+spatial learning add confirmable skill in a monitors-only network — the
+regime most of the world is in. PA for the new states is a registered
+LATER upgrade (owner gate: API spend), expected to raise the incumbent T1
+and re-open every gate for re-adjudication.
+
+Sensor-volume note (owner flag): California alone has O(10k) PA sensors;
+when the PA phase runs, acquisition uses the registered selection rule —
+every sensor within 25 km of an FRM monitor (calibration pairs) plus a
+per-10-km-cell cap elsewhere, long-record preferred (covariate field) —
+cutting CA to ~2-4k sensors with negligible modeling loss (the nbr_pacal_*
+features average within radii and saturate with density).
+
+Honest expectation, stated pre-run: pooled R2 may land BELOW the Texas-only
+number even as the model improves — CA terrain, coastal gradients and
+extreme smoke make the exam harder (the v1 0.71 -> v2 0.33 lesson). The
+run's claims are the paired ladder deltas and the admission verdicts, not
+"the number went up".
 
 ## Why (from the v2_texas_202608 primary run)
 

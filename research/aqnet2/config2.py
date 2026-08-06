@@ -19,6 +19,47 @@ overwrite a raw-target run with a barkjohn one).
 """
 import os
 
+# ── Domain (AQNet v2 = tx, AQNet v3 = west7; EXPANSION.md) ──────────────────
+#
+# The domain is selected by env (AQNET2_DOMAIN) so one codebase serves both
+# runs. Everything domain-dependent — state list, bbox, artifacts namespace,
+# fold-system sizes, the AQS parquet stem — resolves from DOMAIN_SPEC here;
+# no consumer may hardcode "tx"/"v2".
+
+DOMAIN = os.environ.get("AQNET2_DOMAIN", "tx").lower()
+
+_DOMAINS = {
+    # AQNet v2 primary (results/v2_texas_202608)
+    "tx": {
+        "states": ["48"],                      # TX
+        "bbox": {"lat_min": 25.6, "lat_max": 36.7,
+                 "lon_min": -107.0, "lon_max": -93.3},
+        "artifacts": "v2",
+        "aqs_stem": "aqs_daily_tx_v2",         # frozen: matches shipped data
+        "vault_n_sites": 12,
+        "outer_n_folds": 5,
+        "pa_states": ["48"],
+    },
+    # AQNet v3 Phase 1 (EXPANSION.md): CA TX WA CO UT NV AZ, no new PA.
+    "west7": {
+        "states": ["06", "48", "53", "08", "49", "32", "04"],
+        "bbox": {"lat_min": 25.6, "lat_max": 49.1,
+                 "lon_min": -124.8, "lon_max": -93.3},
+        "artifacts": "v3",
+        "aqs_stem": "aqs_daily_west7_v3",
+        "vault_n_sites": 30,
+        "outer_n_folds": 8,
+        "pa_states": ["48"],                   # Phase 1: TX archive only
+    },
+}
+if DOMAIN not in _DOMAINS:
+    raise SystemExit(f"[config2] unknown AQNET2_DOMAIN {DOMAIN!r} "
+                     f"(known: {sorted(_DOMAINS)})")
+DOMAIN_SPEC = _DOMAINS[DOMAIN]
+STATE_FIPS = list(DOMAIN_SPEC["states"])
+PA_STATE_FIPS = list(DOMAIN_SPEC["pa_states"])
+AQS_STEM = DOMAIN_SPEC["aqs_stem"]
+
 # ── Paths ───────────────────────────────────────────────────────────────────
 
 # aqnet2 sits at <ROOT>/research/aqnet2
@@ -26,7 +67,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 AQNET2_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(AQNET2_DIR, "data")
 CACHE_DIR = os.path.join(AQNET2_DIR, "cache")
-ARTIFACTS_DIR = os.path.join(AQNET2_DIR, "artifacts", "v2")
+ARTIFACTS_DIR = os.path.join(AQNET2_DIR, "artifacts", DOMAIN_SPEC["artifacts"])
 V1_DIR = os.path.join(os.path.dirname(AQNET2_DIR), "aqnet")
 DL_DIR = os.path.join(os.path.dirname(AQNET2_DIR), "deeplearning")
 PIPELINE_DIR = os.path.join(ROOT, "pipeline")
@@ -71,7 +112,7 @@ def canonical_aqs_path():
         pass
 
     def _span_mtime(p):
-        m = _re.search(r"_v2_(\d{4})_(\d{4})\.parquet$", os.path.basename(p))
+        m = _re.search(r"_(\d{4})_(\d{4})\.parquet$", os.path.basename(p))
         span = (int(m.group(2)) - int(m.group(1))) if m else -1
         try:
             mt = os.path.getmtime(p)
@@ -79,14 +120,16 @@ def canonical_aqs_path():
             mt = 0.0
         return (span, mt)
 
-    v2s = sorted(_glob.glob(os.path.join(DATA_DIR, "aqs_daily_tx_v2_*.parquet")),
+    v2s = sorted(_glob.glob(os.path.join(DATA_DIR, AQS_STEM + "_*.parquet")),
                  key=_span_mtime, reverse=True)
     return v2s[0] if v2s else None
 
 
-# ── Domain & dates (identical to v1 — the reconstruction window) ────────────
+# ── Domain bbox & dates ─────────────────────────────────────────────────────
 
-TX_BBOX = {"lat_min": 25.6, "lat_max": 36.7, "lon_min": -107.0, "lon_max": -93.3}
+# Name kept from v1/v2 for the many existing consumers; semantically this is
+# THE DOMAIN bbox (tx: Texas; west7: the WEST7 envelope).
+TX_BBOX = dict(DOMAIN_SPEC["bbox"])
 GRID_DEG = 0.1
 
 DATE_START = "2021-01-01"
@@ -96,10 +139,10 @@ TEMPORAL_EMBARGO_DAYS = 7        # lagged features embargoed at the cutoff
 
 # ── Fold system (DESIGN §2; folds2.py is the sole builder) ──────────────────
 
-VAULT_N_SITES = 12          # one-shot AQS vault, touched once by validate
+VAULT_N_SITES = int(DOMAIN_SPEC["vault_n_sites"])  # one-shot AQS vault
 VAULT_BUFFER_KM = 30.0      # every vault site >= this far from non-vault
 VAULT_DATE_START = "2026-01-01"  # vault period: all data from here onward
-OUTER_N_FOLDS = 5           # spatially-blocked outer folds over AQS sites
+OUTER_N_FOLDS = int(DOMAIN_SPEC["outer_n_folds"])  # spatially-blocked outer
 INNER_N_FOLDS = 4           # folds 0-1 selection, 2-3 confirmation
 LOSO_N_FOLDS = 10           # unit-grouped LOSO nested within each outer fold
 SEED = 42
