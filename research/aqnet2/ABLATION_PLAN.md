@@ -52,6 +52,16 @@ Total registered budget ≈ 150–250 GPU-h (≈ 2× the primary), embers-shaped
 | A16 | tail-only cf_1 refetch (flagged rows only, ~hours not days) + calibration/exceedance re-run | the smoke/high-PM regime currently rests on the reconstructed ATM channel — the single highest-value data acquisition; requires PurpleAir API spend (OWNER DECISION) | fetch hours + CPU ~3 h |
 | A17 | bare-site radius sweep (5/25/50 km denudation) + admitted-tier bare-site scoring with graph inputs masked | "5-km-denuded" must not be read as "unmonitored"; T2's 150-km graph is not neutralized by a 5-km strip | CPU+GPU ~6 h |
 
+Deviation (2026-08-05, primary run): the T1 candidate-A budget escape was
+fired by operator override (`AQNET2_FORCE_ESCAPE=1`) rather than by the
+in-band timing probe — the probe measures the lambda=1.0 fit, but the FIRST
+lambda fit alone exceeded 3.4 h wall on the full frame (job 11699055),
+projecting ~190 h against the registered 10 h budget; the probe could
+therefore never reach its own checkpoint. The decision label, evidence and
+env override are recorded in `oof_tier1.npz weights_json`. Candidate A
+remains a registered post-primary arm (A13 covers the unit-intercept
+follow-up).
+
 Deviations registered (disclosed, not silently accepted): outer folds enforce
 size bounds but not the CBSA-share cap; vault stratification omits urbanicity
 (metadata absent pre-refetch); the 7-day temporal embargo is enforced by

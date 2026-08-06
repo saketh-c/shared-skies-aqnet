@@ -468,6 +468,22 @@ def run_candidate_a(ctx):
         return res
     res["available"] = True
 
+    # Operator-fired budget escape: the in-band trigger below can only fire
+    # after the lambda=1.0 timing fit completes, so when a SINGLE fit runs
+    # multiple hours the probe itself blows the budget before it can
+    # project. Setting AQNET2_FORCE_ESCAPE=1 fires the same pre-registered
+    # escape (decision label "budget_escape", candidate B carries T1) with
+    # the observed evidence recorded here instead of a probe timing.
+    if os.environ.get("AQNET2_FORCE_ESCAPE") == "1":
+        res["escape"] = True
+        res["timings"]["first_fit_seconds"] = None
+        res["notes"].append(
+            "escape fired via AQNET2_FORCE_ESCAPE=1: prior full-run "
+            "attempt's first lambda fit exceeded 3.4 h wall (job 11699055), "
+            "projecting ~190 h for the full A protocol against the "
+            f"{ESCAPE_BUDGET_HOURS} h registered budget")
+        return res
+
     frame, features, X0 = ctx["frame"], ctx["features"], ctx["X0"]
     coords, groups, w0 = ctx["coords"], ctx["groups"], ctx["w0"]
     is_pa = ctx["is_pa"]
