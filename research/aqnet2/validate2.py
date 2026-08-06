@@ -1492,7 +1492,22 @@ def _gates_parity(frame, folds, npz1, npzs_deep, gates, comp,
     # bit-mismatches (observed on the smoke run).
     try:
         y = frame["y"].to_numpy(dtype=np.float64).copy()
-        clusters = frame["unit_id"].to_numpy()
+        # Mirror stage_gates EXACTLY: PA rows' admission truth is the mean
+        # over the fold-nested pa_cal_f{k} columns — the T4 fit saw THAT y,
+        # not frame['y'] (which keeps pa_cal_full as the deployment view).
+        # Without the swap the replayed affine fits diverge on every PA row
+        # and the whole composite bit-mismatches (observed on the first
+        # full run; the swap landed in gates after the last parity smoke).
+        pa_cal_cols = sorted(c for c in frame.columns
+                             if re.fullmatch(r"pa_cal_f\d+", c))
+        if pa_cal_cols:
+            is_pa = (frame["unit_type"] == "pa").to_numpy()
+            nested = np.nanmean(
+                np.column_stack([frame[c].to_numpy(dtype=np.float64)
+                                 for c in pa_cal_cols]), axis=1)
+            swap = is_pa & np.isfinite(nested)
+            y[swap] = nested[swap]
+        clusters = frame["unit_id"].astype(str).to_numpy()
         try:
             import folds2 as _f2mod
             vmask = _f2mod.vault_row_mask(frame, folds)
