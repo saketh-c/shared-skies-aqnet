@@ -177,10 +177,12 @@ def fig04_ladder():
     if not mo:
         return _skip("F04", "metrics_outer.json absent")
     plt = _plt()
-    # Expect keys like {"t0": {...}, "t1": {...}, "t1_t2": {...}, ...} with
-    # r2 + bootstrap_ci; tolerate whatever subset validate2 produced.
+    # validate2 layout: mo["ladder"][chain] = {"metrics": {r2,...},
+    # "bootstrap_ci": {"r2": [lo, hi], ...}, "spatial_temporal": {...}}.
+    lad = mo.get("ladder") or {}
     ladder_keys = [k for k in ("t0", "t1", "t1_t2", "t1_t2_t3", "composite")
-                   if k in mo and isinstance(mo[k], dict) and mo[k].get("r2") is not None]
+                   if isinstance(lad.get(k), dict)
+                   and (lad[k].get("metrics") or {}).get("r2") is not None]
     if not ladder_keys:
         return _skip("F04", "no ladder entries in metrics_outer.json")
     labels = {"t0": "T0", "t1": "T1", "t1_t2": "+T2", "t1_t2_t3": "+T3",
@@ -188,17 +190,19 @@ def fig04_ladder():
     colors = [STYLE.get(k.split("_")[-1], STYLE["composite"]) for k in ladder_keys]
     fig, ax = plt.subplots(figsize=(5.6, 3.4))
     for i, k in enumerate(ladder_keys):
-        r2 = mo[k]["r2"]
-        ci = (mo[k].get("bootstrap_ci") or {}).get("r2") or (None, None)
+        r2 = lad[k]["metrics"]["r2"]
+        ci = (lad[k].get("bootstrap_ci") or {}).get("r2") or (None, None)
         ax.bar(i, r2, color=colors[i], width=0.6)
         if ci and ci[0] is not None:
             ax.errorbar(i, r2, yerr=[[r2 - ci[0]], [ci[1] - r2]],
                         color="#222222", capsize=3, lw=1.1)
         ax.text(i, r2 + 0.01, f"{r2:.3f}", ha="center", fontsize=8.4)
     vault = _load_json("metrics_vault.json")
-    if vault and vault.get("composite", {}).get("r2") is not None:
-        ax.axhline(vault["composite"]["r2"], color=STYLE["bad"], lw=1.2, ls="--",
-                   label=f"vault (one-shot): {vault['composite']['r2']:.3f}")
+    vr2 = (((vault or {}).get("vault_sites") or {}).get("metrics")
+           or {}).get("r2")
+    if vr2 is not None:
+        ax.axhline(vr2, color=STYLE["bad"], lw=1.2, ls="--",
+                   label=f"vault sites (one-shot): {vr2:.3f}")
         ax.legend(fontsize=8, frameon=False)
     ax.set_xticks(range(len(ladder_keys)))
     ax.set_xticklabels([labels[k] for k in ladder_keys])
@@ -241,39 +245,54 @@ def fig05_gates():
 # ── F06 site map ────────────────────────────────────────────────────────────
 
 def fig06_site_map():
+    # validate2 emits per_outer_fold / per_spatial_block (no per-site
+    # coordinate table lives in the artifacts), so this panel shows the
+    # composite's R2 and bias across both spatial partitions instead of a
+    # lat/lon scatter.
     mo = _load_json("metrics_outer.json")
-    per_site = (mo or {}).get("per_site")
-    if not per_site:
-        return _skip("F06", "per_site table absent from metrics_outer.json")
+    pof = (mo or {}).get("per_outer_fold") or {}
+    psb = (mo or {}).get("per_spatial_block") or {}
+    if not pof and not psb:
+        return _skip("F06", "per_outer_fold/per_spatial_block absent")
     plt = _plt()
-    lats = [v["lat"] for v in per_site.values() if "lat" in v]
-    lons = [v["lon"] for v in per_site.values() if "lon" in v]
-    bias = [v.get("bias", np.nan) for v in per_site.values() if "lat" in v]
-    if not lats:
-        return _skip("F06", "per_site lacks coordinates")
-    fig, ax = plt.subplots(figsize=(5.8, 5.0))
-    sc = ax.scatter(lons, lats, c=bias, cmap="RdBu_r", vmin=-4, vmax=4,
-                    s=42, edgecolor="#333333", linewidth=0.5)
-    fig.colorbar(sc, ax=ax, label="site bias (µg/m³)", shrink=0.8)
-    bb = config2.TX_BBOX
-    ax.set_xlim(bb["lon_min"], bb["lon_max"])
-    ax.set_ylim(bb["lat_min"], bb["lat_max"])
-    ax.set_xlabel("lon")
-    ax.set_ylabel("lat")
-    ax.set_title("Held-out AQS site bias (outer folds)", fontsize=10.5)
-    _save(fig, "F06_site_map.png")
+    fig, axes = plt.subplots(1, 2, figsize=(8.6, 3.2), sharey=True)
+    for ax, tab, ttl in ((axes[0], pof, "outer folds"),
+                         (axes[1], psb, "spatial blocks")):
+        keys = sorted(tab)
+        r2 = [tab[k].get("r2", np.nan) for k in keys]
+        bias = [tab[k].get("bias", np.nan) for k in keys]
+        nsit = [tab[k].get("n_sites") for k in keys]
+        x = np.arange(len(keys))
+        bars = ax.bar(x, r2, width=0.6,
+                      color=[STYLE["good"] if (v == v and v > 0)
+                             else STYLE["bad"] for v in r2])
+        for i, (b, bi, ns) in enumerate(zip(bars, bias, nsit)):
+            ax.text(i, max(b.get_height(), 0) + 0.02,
+                    f"bias {bi:+.1f}\n{ns} sites", ha="center", fontsize=7)
+        ax.axhline(0.0, color="#000000", lw=0.8)
+        ax.set_xticks(x)
+        ax.set_xticklabels([k.replace("outer_", "fold ")
+                            .replace("block_", "block ") for k in keys],
+                           fontsize=8)
+        ax.set_title(f"held-out R² by {ttl}", fontsize=9.5)
+    axes[0].set_ylabel("R²")
+    fig.suptitle("Composite skill across spatial partitions", fontsize=10.5)
+    _save(fig, "F06_fold_blocks.png")
 
 
 # ── F07 attenuation ─────────────────────────────────────────────────────────
 
 def fig07_attenuation():
+    # attenuation lives inside by_year: attenuation_a / attenuation_b.
     mo = _load_json("metrics_outer.json")
-    att = (mo or {}).get("attenuation_by_year")
+    byy = (mo or {}).get("by_year") or {}
+    att = {y: d for y, d in byy.items()
+           if isinstance(d, dict) and d.get("attenuation_b") is not None}
     if not att:
-        return _skip("F07", "attenuation_by_year absent")
+        return _skip("F07", "by_year attenuation absent")
     plt = _plt()
     years = sorted(att)
-    b = [att[y].get("b") for y in years]
+    b = [att[y].get("attenuation_b") for y in years]
     fig, ax = plt.subplots(figsize=(5.4, 3.0))
     lo, hi = config2.T4_SLOPE_CLIP
     ax.axhspan(lo, hi, color=STYLE["band"], alpha=0.5,
@@ -291,17 +310,22 @@ def fig07_attenuation():
 # ── F08 coverage ────────────────────────────────────────────────────────────
 
 def fig08_coverage():
-    uq = _load_json("uq_params.json")
-    cov = (uq or {}).get("coverage_by_bin") or (uq or {}).get("coverage")
+    # coverage lives in metrics_outer.intervals (validate2), keyed
+    # per_coverage_bin with a declared ship_window.
+    mo = _load_json("metrics_outer.json")
+    iv = (mo or {}).get("intervals") or {}
+    cov = iv.get("per_coverage_bin")
     if not cov:
-        return _skip("F08", "uq_params.json coverage absent")
+        return _skip("F08", "intervals.per_coverage_bin absent")
+    win = iv.get("ship_window") or [0.88, 0.93]
     plt = _plt()
     fig, ax = plt.subplots(figsize=(5.2, 3.2))
     if isinstance(cov, dict):
         bins = sorted(cov)
         c = [cov[b].get("coverage") if isinstance(cov[b], dict) else cov[b] for b in bins]
         w = [cov[b].get("mean_width") if isinstance(cov[b], dict) else np.nan for b in bins]
-        ax.axhspan(0.88, 0.93, color=STYLE["band"], alpha=0.6, label="ship window")
+        ax.axhspan(win[0], win[1], color=STYLE["band"], alpha=0.6,
+                   label=f"ship window [{win[0]}, {win[1]}]")
         ax.axhline(0.90, color="#000000", lw=0.8, ls=":")
         ax.bar(range(len(bins)), c, color=STYLE["t1"], width=0.55)
         for i, (ci, wi) in enumerate(zip(c, w)):
@@ -320,30 +344,35 @@ def fig08_coverage():
 # ── F09 exceedance ──────────────────────────────────────────────────────────
 
 def fig09_exceedance():
+    # exceed_model.json per_threshold[thr]["admission"] carries the paired
+    # head-vs-thresholded-composite F1 test (point_new = head,
+    # point_ref = thresholded composite, decision).
     ex = _load_json("exceed_model.json")
-    if not ex:
-        return _skip("F09", "exceed_model.json absent")
-    plt = _plt()
-    thrs = [k for k in ex if k.replace(".", "").isdigit()] or list(ex.keys())
+    per = (ex or {}).get("per_threshold") or {}
     rows = []
-    for t in thrs:
-        e = ex[t] if isinstance(ex[t], dict) else {}
-        m = e.get("confirmation_metrics") or e
-        if isinstance(m, dict) and ("f1" in m or "precision" in m):
-            rows.append((t, m.get("precision"), m.get("recall"), m.get("f1")))
+    for t in sorted(per, key=lambda s: float(s)):
+        adm = (per[t] or {}).get("admission") or {}
+        if adm.get("point_new") is not None:
+            rows.append((t, adm.get("point_ref"), adm.get("point_new"),
+                         adm.get("decision", "?"), adm.get("ci")))
     if not rows:
-        return _skip("F09", "no per-threshold metrics in exceed_model.json")
-    fig, ax = plt.subplots(figsize=(5.2, 3.0))
+        return _skip("F09", "no per-threshold admission metrics in exceed_model.json")
+    plt = _plt()
+    fig, ax = plt.subplots(figsize=(5.6, 3.0))
     x = np.arange(len(rows))
-    for off, (idx, lab) in zip((-0.22, 0.0, 0.22),
-                               ((1, "precision"), (2, "recall"), (3, "F1"))):
-        vals = [r[idx] if r[idx] is not None else np.nan for r in rows]
-        ax.bar(x + off, vals, width=0.2, label=lab)
+    ax.bar(x - 0.17, [r[1] for r in rows], width=0.3,
+           label="thresholded composite F1", color=STYLE["t1"])
+    ax.bar(x + 0.17, [r[2] for r in rows], width=0.3,
+           label="dedicated head F1", color=STYLE["t2"])
+    for i, (t, ref, new, dec, _ci) in enumerate(rows):
+        ax.text(i, max(ref or 0, new or 0) + 0.004, dec, ha="center",
+                fontsize=7.6)
     ax.set_xticks(x)
     ax.set_xticklabels([f"> {r[0]} µg/m³" for r in rows])
-    ax.set_ylim(0, 1)
+    ax.set_ylabel("exceedance F1 (valid labels only)")
     ax.legend(fontsize=8, frameon=False)
-    ax.set_title("Exceedance head (v1 recall was 0.068 → 0.000)", fontsize=10)
+    ax.set_title("Exceedance: dedicated head vs thresholded composite "
+                 "(admission-tested)", fontsize=9.5)
     _save(fig, "F09_exceedance.png")
 
 
@@ -355,15 +384,15 @@ def fig10_baselines():
         return _skip("F10", "metrics_baselines.json absent")
     plt = _plt()
     rows = []
-    for name, m in mb.items():
+    # validate2 layout: mb["baselines"][name]["admission_vs_composite"]
+    # ["metrics"]["pooled_r2"] carries delta (composite - baseline) + ci.
+    for name, m in (mb.get("baselines") or {}).items():
         if not isinstance(m, dict):
             continue
-        d = m.get("paired_delta_r2") or {}
-        if d.get("delta_r2") is not None:
-            ci = d.get("ci95") or (None, None)
-            rows.append((name, d["delta_r2"], ci))
-        elif m.get("r2") is not None:
-            rows.append((name, None, (None, None), m["r2"]))
+        pr = ((m.get("admission_vs_composite") or {}).get("metrics")
+              or {}).get("pooled_r2") or {}
+        if pr.get("delta") is not None:
+            rows.append((name, pr["delta"], pr.get("ci") or (None, None)))
     if not rows:
         return _skip("F10", "no baseline entries")
     paired = [r for r in rows if len(r) == 3]
@@ -386,7 +415,8 @@ def fig10_baselines():
 
 def fig11_permutation():
     pr = _load_json("permutation_report.json")
-    top = (pr or {}).get("top_features") or (pr or {}).get("features")
+    top = ((pr or {}).get("top15_single_features")
+           or (pr or {}).get("top_features") or (pr or {}).get("features"))
     if not top:
         return _skip("F11", "permutation_report.json absent/empty")
     plt = _plt()
@@ -409,8 +439,13 @@ def fig11_permutation():
 # ── F12 spatial/temporal decomposition ──────────────────────────────────────
 
 def fig12_decomposition():
+    # spatial/temporal decomposition lives per ladder chain:
+    # mo["ladder"][chain]["spatial_temporal"].
     mo = _load_json("metrics_outer.json")
-    dec = (mo or {}).get("spatial_temporal") or {}
+    lad = (mo or {}).get("ladder") or {}
+    dec = {k: v.get("spatial_temporal") for k, v in lad.items()
+           if isinstance(v, dict) and isinstance(v.get("spatial_temporal"),
+                                                 dict)}
     if not dec:
         return _skip("F12", "spatial_temporal decomposition absent")
     plt = _plt()
