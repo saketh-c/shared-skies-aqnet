@@ -33,6 +33,8 @@ import config2
 
 # ── Input paths (committed v1 data; see diag_data.md for schemas) ──────────
 PA_PARQUET = os.path.join(config2.PIPELINE_DIR, "purpleair_full_dataset.parquet")
+# AQS_PARQUET is the committed v1 Texas parquet -- the default for the tx
+# domain ONLY (load_site_index gates on config2.DOMAIN).
 AQS_PARQUET = os.path.join(config2.V1_DIR, "data", "aqs_daily_tx.parquet")
 
 MAX_PAIR_KM = 25.0
@@ -77,11 +79,29 @@ def load_sensor_index(pa_parquet=None):
 
 
 def load_site_index(aqs_parquet=None):
-    """Per-site location + observed-date table from the v1 AQS daily parquet.
+    """Per-site location + observed-date table from the AQS daily parquet.
 
     Returns a DataFrame [site_id(str), lat, lon] and {site_id: dates array}.
+    Source: an explicit path argument, else the committed v1 Texas parquet
+    for the tx domain (shipped v2 behavior, unchanged); any other domain
+    resolves config2.canonical_aqs_path() and raises loudly when no domain
+    parquet has been fetched -- pairing a wider domain's sensors against
+    Texas-only sites would silently produce a wrong-domain calibration
+    inventory (loud omission, never a wrong-domain fill).
     """
-    path = aqs_parquet or AQS_PARQUET
+    path = aqs_parquet
+    if path is None:
+        if config2.DOMAIN == "tx":
+            path = AQS_PARQUET
+        else:
+            path = config2.canonical_aqs_path()
+            if path is None:
+                raise FileNotFoundError(
+                    f"no AQS daily parquet for domain '{config2.DOMAIN}' "
+                    f"(expected {config2.AQS_STEM}_*.parquet under "
+                    f"{config2.DATA_DIR}) -- fetch stage not yet run for "
+                    f"domain {config2.DOMAIN}; the committed Texas parquet "
+                    "is tx-only and is never substituted")
     aq = pd.read_parquet(path, columns=["site_id", "date", "lat", "lon"])
     aq["site_id"] = aq["site_id"].astype(str)
     aq["date"] = pd.to_datetime(aq["date"]).dt.normalize()

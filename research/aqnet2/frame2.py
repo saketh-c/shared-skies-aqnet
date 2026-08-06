@@ -78,6 +78,9 @@ PA_LAGS = (1,)
 
 # Texas coast reference points (Brownsville -> Sabine Pass), identical to v1
 # features.py so dist_to_coast stays byte-compatible across versions.
+# Domain note (EXPANSION.md): west7 coast reference points are NOT yet
+# registered; until they are, dist_to_coast keeps this Gulf reference in
+# every domain rather than inventing unregistered coordinates here.
 TX_COAST_POINTS = [
     (25.97, -97.50),  # Brownsville
     (27.80, -97.40),  # Corpus Christi
@@ -101,12 +104,17 @@ BANNED_FEATURES = (set(config2.EXCLUDED_DEMOGRAPHIC)
                       "dist_to_nearest_sensor"})
 
 # Default committed by-cell products (v1 parquets remain live inputs) used
-# when an external_paths dict does not name them explicitly.
+# when an external_paths dict does not name them explicitly. The statics
+# default is tx-ONLY: the committed lattice is Texas-bbox, so a non-tx
+# domain must get its statics from the data-stage registry (fetchers2
+# writes the domain-stamped path) or degrade loudly to NaN st_* via the
+# build_pools warning — a default here would be a silent wrong-domain fill.
 _DEFAULT_EXTERNAL = {
     "cams": os.path.join(config2.PIPELINE_DIR, "airquality_by_cell.parquet"),
     "met_extra": os.path.join(config2.PIPELINE_DIR, "met_extra_by_cell.parquet"),
     "hms_grid": os.path.join(config2.PIPELINE_DIR, "hms_grid.parquet"),
-    "statics": os.path.join(config2.PIPELINE_DIR, "static_covariates.parquet"),
+    "statics": (os.path.join(config2.PIPELINE_DIR, "static_covariates.parquet")
+                if config2.DOMAIN == "tx" else None),
     "pa_daily": os.path.join(config2.PIPELINE_DIR, "purpleair_full_dataset.parquet"),
 }
 _GRIDDED_KEYS = ("geoscf", "merra2", "cams", "era5", "met_extra", "maiac",

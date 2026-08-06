@@ -13,8 +13,17 @@ source "$HOME/scratch/aqnet/repo/slurm2/common.sh"
 source "$VENV/bin/activate"
 cd "$REPO"
 # Sentinel is the committed statics parquet (DESIGN §12.6), not an $ART file
-# — it mirrors pipeline2.stage_statics exactly.
-if [ "${FORCE:-0}" != "1" ] && [ -f "$REPO/pipeline/static_covariates.parquet" ]; then
+# — it mirrors pipeline2.stage_statics exactly, INCLUDING the domain stamp
+# (fetchers2._dstem): tx keeps the shipped unstamped name; any other domain
+# checks static_covariates_${AQNET2_DOMAIN}.parquet, so a west7 job never
+# mistakes the committed Texas lattice for its own output and silently
+# skips. AQNET2_DOMAIN is exported (default tx) by common.sh above.
+if [ "$AQNET2_DOMAIN" = "tx" ]; then
+  STATICS_SENTINEL="$REPO/pipeline/static_covariates.parquet"
+else
+  STATICS_SENTINEL="$REPO/pipeline/static_covariates_${AQNET2_DOMAIN}.parquet"
+fi
+if [ "${FORCE:-0}" != "1" ] && [ -f "$STATICS_SENTINEL" ]; then
   echo "statics outputs exist — skipping (FORCE=1 to re-run)"; exit 0
 fi
 python research/aqnet2/pipeline2.py statics

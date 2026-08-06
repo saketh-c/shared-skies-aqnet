@@ -1,7 +1,8 @@
 """AQNet v2 stage driver — the single CLI over research/aqnet2 (DESIGN §13).
 
 Stages, in DAG order (each communicates with the others ONLY via artifacts
-under research/aqnet2/artifacts/v2):
+under config2.ARTIFACTS_DIR — the domain namespace: artifacts/v2 for tx,
+artifacts/v3 for west7; AQNET2_DOMAIN selects, config2 resolves):
 
   audit      S0: channel provenance, colocation inventory, cf_1 cost
              arithmetic (skip decision), gate POWER ANALYSIS on v1 residuals
@@ -112,7 +113,8 @@ SENTINELS = {
     "audit": ("power_analysis.json", "audit_report.json"),
     "data-pa": ("data_pa_decision.json",),
     "data": (),
-    "statics": (),           # sentinel is pipeline/static_covariates.parquet
+    "statics": (),           # sentinel: domain-stamped pipeline statics
+                             # parquet (stage_statics; tx: unstamped name)
     "colocate": ("colocation_pairs.parquet",),
     "calibrate": ("pa_calibrated.parquet", "calibration_report.json"),
     "priors": ("prior_downscaler_f0.npz",),
@@ -286,6 +288,15 @@ def _quick_argv(args, extra=()):
 
 # ── external_paths.json (data-stage output registry, v1 precedent) ──────────
 
+def _dstem(base):
+    """Domain-stamped filename stem — a mirror of fetchers2._dstem (see its
+    docstring for the full argument). tx keeps the shipped v2 names
+    byte-for-byte; every other domain appends its name, because data/ and
+    pipeline/ are SHARED across domains and an unstamped name would let a
+    Texas-bbox file silently serve — or be served by — a wider domain."""
+    return base if config2.DOMAIN == "tx" else f"{base}_{config2.DOMAIN}"
+
+
 def _ensure_external_paths():
     """Complete external_paths.json from well-known committed locations.
 
@@ -293,29 +304,53 @@ def _ensure_external_paths():
     committed v1 products so a frame build never silently loses a stream.
     Keys per BUILD_NOTES contract #1: aqs, pa_daily, geoscf, merra2, cams,
     era5, met_extra, maiac, hms_grid (+ statics). Only existing files are
-    recorded — an absent product is an absent key, never a dangling path."""
+    recorded — an absent product is an absent key, never a dangling path.
+    Domain routing mirrors fetchers2.write_external_paths: the committed v1
+    Texas products (V1_DIR/data geoscf + merra2, the unstamped by-cell and
+    statics pipeline parquets) are candidates for the tx domain ONLY; every
+    other domain's candidates carry the _dstem stamp, and an absent stamped
+    file is an omitted key — a loud omission, never a wrong-domain fill."""
     dest = artifact("external_paths.json")
     paths = _read_json(dest) or {}
+    tx = config2.DOMAIN == "tx"
     fallbacks = {
-        "aqs": [os.path.join(config2.DATA_DIR, "aqs_daily_tx.parquet"),
-                os.path.join(config2.V1_DIR, "data", "aqs_daily_tx.parquet")],
+        # aqs: the committed v1 Texas daily parquet is a valid fallback for
+        # the tx domain ONLY; every other domain routes through
+        # config2.canonical_aqs_path() (the domain-stem widest-window rule),
+        # which yields None when no domain parquet exists — an absent AQS is
+        # an absent key and a loud warning, never a wrong-domain fill.
+        "aqs": ([os.path.join(config2.DATA_DIR, "aqs_daily_tx.parquet"),
+                 os.path.join(config2.V1_DIR, "data", "aqs_daily_tx.parquet")]
+                if tx
+                else [config2.canonical_aqs_path()]),
+        # pa_daily stays unstamped by design (EXPANSION Phase 1: the TX
+        # archive is the PA source for every domain).
         "pa_daily": [os.path.join(config2.PIPELINE_DIR,
                                   "purpleair_full_dataset.parquet")],
-        "geoscf": sorted(glob.glob(os.path.join(
-            config2.V1_DIR, "data", "geoscf_pm25_*.parquet"))),
-        "merra2": [os.path.join(config2.DATA_DIR, "merra2_daily.parquet")]
-                  + sorted(glob.glob(os.path.join(
-                      config2.V1_DIR, "data", "merra2_*.parquet"))),
+        # geoscf/merra2: the v1 Texas parquets are tx-only candidates; a
+        # non-tx domain's files are registered by fetchers2 itself under the
+        # stamped stems, so there is nothing safe to fall back to here.
+        "geoscf": (sorted(glob.glob(os.path.join(
+            config2.V1_DIR, "data", "geoscf_pm25_*.parquet")))
+            if tx else []),
+        "merra2": (([os.path.join(config2.DATA_DIR, "merra2_daily.parquet")]
+                    + sorted(glob.glob(os.path.join(
+                        config2.V1_DIR, "data", "merra2_*.parquet"))))
+                   if tx else []),
         "cams": [os.path.join(config2.PIPELINE_DIR,
-                              "airquality_by_cell.parquet")],
+                              _dstem("airquality_by_cell") + ".parquet")],
         "era5": [os.path.join(config2.DATA_DIR, "era5_by_cell.parquet")],
         "met_extra": [os.path.join(config2.PIPELINE_DIR,
-                                   "met_extra_by_cell.parquet")],
+                                   _dstem("met_extra_by_cell") + ".parquet")],
         "maiac": [os.path.join(config2.DATA_DIR, "maiac_aod_by_cell.parquet")],
-        "hms_grid": [os.path.join(config2.PIPELINE_DIR, "hms_grid.parquet"),
-                     os.path.join(config2.DATA_DIR, "hms_grid.parquet")],
+        "hms_grid": ([os.path.join(config2.PIPELINE_DIR, "hms_grid.parquet"),
+                      os.path.join(config2.DATA_DIR, "hms_grid.parquet")]
+                     if tx
+                     else sorted(glob.glob(os.path.join(
+                         config2.DATA_DIR,
+                         _dstem("hms_grid") + "_[0-9]*.parquet")))),
         "statics": [os.path.join(config2.PIPELINE_DIR,
-                                 "static_covariates.parquet")],
+                                 _dstem("static_covariates") + ".parquet")],
     }
     changed = False
     for key, cands in fallbacks.items():
@@ -792,8 +827,13 @@ def stage_data(args):
 
 def stage_statics(args):
     """HR statics bundle via fetchers2.statics; sentinel is the committed
-    pipeline/static_covariates.parquet (DESIGN §12.6), not an $ART file."""
-    statics_p = os.path.join(config2.PIPELINE_DIR, "static_covariates.parquet")
+    pipeline statics parquet (DESIGN §12.6), not an $ART file — under the
+    domain-stamped name (_dstem: tx keeps static_covariates.parquet, the
+    shipped v2 sentinel; west7 checks static_covariates_west7.parquet), so
+    a non-tx run never mistakes the Texas lattice for its own output and
+    silently skips the build."""
+    statics_p = os.path.join(config2.PIPELINE_DIR,
+                             _dstem("static_covariates") + ".parquet")
     if os.path.exists(statics_p) and not _force():
         _say("statics outputs exist — skipping (FORCE=1 to re-run)")
         return
@@ -802,7 +842,7 @@ def stage_statics(args):
     if os.path.exists(statics_p):
         _say(f"statics: {statics_p} present")
     else:
-        _say("statics: WARNING static_covariates.parquet still absent — "
+        _say(f"statics: WARNING {os.path.basename(statics_p)} still absent — "
              "st_* features will be NaN (frame2 degrades loudly)")
     _ensure_external_paths()
 
@@ -1657,9 +1697,9 @@ def main(argv=None):
         # folds2.json, pa_calibrated, graph/field ckpt stems all live under
         # artifact()). config2.artifact() reads ARTIFACTS_DIR dynamically
         # and every module uses flat `import config2`, so the rebind below
-        # covers all in-process consumers.
-        config2.ARTIFACTS_DIR = os.path.join(config2.AQNET2_DIR,
-                                             "artifacts", "v2-quick")
+        # covers all in-process consumers. Derived (never spelled) from the
+        # domain namespace: tx -> artifacts/v2-quick, west7 -> v3-quick.
+        config2.ARTIFACTS_DIR = config2.ARTIFACTS_DIR + "-quick"
         os.makedirs(config2.ARTIFACTS_DIR, exist_ok=True)
         _say(f"--quick: artifacts redirected to {config2.ARTIFACTS_DIR}")
 

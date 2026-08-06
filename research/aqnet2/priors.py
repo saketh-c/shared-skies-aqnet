@@ -668,9 +668,10 @@ def main(argv=None):
     ap.add_argument("--quick", action="store_true",
                     help="3-month window, first 2 outer folds + full")
     ap.add_argument("--external-paths", default=None,
-                    help="path to external_paths.json (default: artifacts/v2)")
+                    help="path to external_paths.json (default: "
+                         "config2.ARTIFACTS_DIR)")
     ap.add_argument("--folds", default=None,
-                    help="path to folds2.json (default: artifacts/v2)")
+                    help="path to folds2.json (default: config2.ARTIFACTS_DIR)")
     ap.add_argument("--lam", type=float, default=RIDGE_LAM,
                     help="relative ridge penalty on the RBF coefficients")
     args = ap.parse_args(argv)

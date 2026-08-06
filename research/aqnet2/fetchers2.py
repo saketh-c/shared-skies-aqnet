@@ -151,7 +151,7 @@ HMS_TIER = {"light": 1, "medium": 2, "heavy": 3}
 HMS_TIER_NUM = {5.0: 1, 16.0: 2, 27.0: 3}   # legacy numeric Density codes
 
 TIGER_ROADS_URL = ("https://www2.census.gov/geo/tiger/TIGER2023/PRISECROADS/"
-                   "tl_2023_48_prisecroads.zip")
+                   "tl_2023_{fips}_prisecroads.zip")
 
 ETOPO_30S_URL = ("https://www.ngdc.noaa.gov/thredds/fileServer/global/"
                  "ETOPO2022/30s/30s_surface_elev_netcdf/"
@@ -168,6 +168,14 @@ NLCD_IMPERV_URLS = [
 ]
 
 NEI_YEARS = (2020, 2023)
+
+# EPA region by state FIPS, for selecting members of the NEI by-regions
+# fallback zip (the facility-level summary zips are national and need no
+# selection). Covers every state a configured domain names; an unmapped
+# FIPS falls back to parsing ALL regional members — a safe superset, since
+# facilities are bbox-filtered afterwards.
+EPA_REGION_BY_FIPS = {"04": "9", "06": "9", "08": "8", "32": "9",
+                      "48": "6", "49": "8", "53": "10"}
 STATICS_STEP = 0.01
 STATICS_STEP_QUICK = 0.05
 ROAD_SAMPLE_KM = 0.1          # polyline resample spacing (~100 m)
@@ -241,6 +249,33 @@ def _jsonable(obj):
     if isinstance(obj, np.bool_):
         return bool(obj)
     return obj
+
+
+def _dstem(base):
+    """Domain-stamped filename stem for a bbox-dependent product.
+
+    The tx domain keeps the shipped v2 names byte-for-byte (the frozen run's
+    finals, chunk caches and registry stay valid and reproducible); every
+    other domain appends its name. data/, cache/ and pipeline/ are SHARED
+    across domains (only ARTIFACTS_DIR is namespaced), so an unstamped name
+    would let a Texas-bbox file silently serve — or be served by — a wider
+    domain. This is the aqs/statics window-stamp precedent (DESIGN §12.2)
+    applied to space."""
+    return base if config2.DOMAIN == "tx" else f"{base}_{config2.DOMAIN}"
+
+
+def _dcache(name):
+    """Domain-stamped CACHE_DIR subdir (created) for bbox-dependent chunks.
+
+    Chunk parquets carry bbox-clipped content under bare {YYYYMM} names, so
+    the DIRECTORY must be domain-stamped or a wider-domain reassembly would
+    silently reuse Texas-bbox chunks. Raw downloads that are national/global
+    (HMS day shapefiles, ETOPO, TIGER per-state zips, NEI summaries) stay in
+    shared, unstamped dirs on purpose — their content does not depend on the
+    bbox."""
+    d = os.path.join(config2.CACHE_DIR, _dstem(name))
+    os.makedirs(d, exist_ok=True)
+    return d
 
 
 def _probe_download(url, dest, attempts=3):
@@ -366,12 +401,14 @@ _URBAN_SETTING = "URBAN AND CENTER CITY"
 
 
 def _aqs_site_meta(zip_dir, dx):
-    """Texas rows of the AQS site listing -> [site_id, location_setting].
+    """Domain-state rows of the AQS site listing -> [site_id,
+    location_setting].
 
     aqs_sites.zip is the station-metadata companion of the AirData daily
-    files; Location Setting is the EPA's own urban classification. Returns
-    None (with a message) when the listing cannot be fetched — is_fem and
-    pm25 survive, urban/location_setting become NaN."""
+    files; Location Setting is the EPA's own urban classification. States
+    come from config2.STATE_FIPS (tx: 48 only, unchanged). Returns None
+    (with a message) when the listing cannot be fetched — is_fem and pm25
+    survive, urban/location_setting become NaN."""
     zp = dx._download(AQS_SITES_URL, os.path.join(zip_dir, "aqs_sites.zip"))
     if zp is None:
         _say("aqs_sites.zip unavailable -- urban/location_setting will be NaN")
@@ -379,14 +416,15 @@ def _aqs_site_meta(zip_dir, dx):
     want = {"State Code", "County Code", "Site Number", "Location Setting"}
     s = pd.read_csv(zp, usecols=lambda c: c in want, dtype=str,
                     low_memory=False)
-    s = s[s["State Code"] == "48"].copy()
+    s = s[s["State Code"].isin(config2.STATE_FIPS)].copy()
     s["site_id"] = (s["State Code"].str.zfill(2)
                     + s["County Code"].str.zfill(3)
                     + s["Site Number"].str.zfill(4))
     s["location_setting"] = s["Location Setting"].str.strip().str.upper()
     s = s.drop_duplicates("site_id")[["site_id", "location_setting"]]
     s = s.reset_index(drop=True)
-    _say(f"aqs_sites listing: {len(s)} Texas sites")
+    _say(f"aqs_sites listing: {len(s)} sites in "
+         f"{len(config2.STATE_FIPS)} domain state(s)")
     return s
 
 
@@ -415,23 +453,31 @@ def _aqs_is_fem(method_name, dur_rank):
 
 
 def fetch_aqs_v2(years=None, dest=None):
-    """Hardened EPA AQS daily PM2.5 for Texas -> parquet, returns its path.
+    """Hardened EPA AQS daily PM2.5 for the domain states -> parquet path.
 
     Reuses the v1 AirData zip cache (cache/aqs under V1_DIR) and the v1
-    reduction: keep State 48 / Parameter 88101, average rows sharing
-    (site, date, POC, duration) — AirData repeats them once per pollutant
-    standard — then the preferred duration (24-HR BLK AVG, else 1 HOUR,
-    else other) and lowest POC win per (site, date). Quality filters are
-    identical to v1: Event Type "Excluded" rows dropped, sub-daily
-    durations need Observation Percent >= 75.
+    reduction: keep the config2.STATE_FIPS State Codes / Parameter 88101,
+    average rows sharing (site, date, POC, duration) — AirData repeats them
+    once per pollutant standard — then the preferred duration (24-HR BLK
+    AVG, else 1 HOUR, else other) and lowest POC win per (site, date).
+    Quality filters are identical to v1: Event Type "Excluded" rows
+    dropped, sub-daily durations need Observation Percent >= 75.
+
+    Multistate note: the AirData zips are NATIONAL files (one download per
+    year, shared across domains in the v1 zip cache), so "loop the states"
+    is an isin() filter over State Code, not per-state downloads — v1
+    fetch_aqs_daily_tx takes no state argument and hardcodes 48 internally,
+    which is why the reduction lives here. site_id embeds the state FIPS,
+    so the (site, date) dedupe below already covers the multistate concat.
 
     v2 hardening over v1 fetch_aqs_daily_tx (audit 06 §4, item f):
       * POC, Method Name and Sample Duration are RETAINED through the
         reduction so is_fem is derivable (v1 discarded them);
       * the aqs_sites.zip listing joins location_setting -> urban;
-      * dest embeds the year window (aqs_daily_tx_v2_{y0}_{y1}.parquet
-        under config2.DATA_DIR), closing the v1 quick/full cache-poisoning
-        hazard (DESIGN §12.2);
+      * dest embeds the domain stem AND the year window
+        (config2.AQS_STEM + _{y0}_{y1}.parquet under config2.DATA_DIR;
+        tx: aqs_daily_tx_v2_..., byte-identical to the shipped run),
+        closing the v1 quick/full cache-poisoning hazard (DESIGN §12.2);
       * failed years land in a {dest}.failed.json sidecar and are retried
         on the next call instead of silently truncating the record.
 
@@ -443,7 +489,8 @@ def fetch_aqs_v2(years=None, dest=None):
     dx = _v1()
     years = sorted(list(years) if years is not None else AQS_YEARS_FULL)
     dest = dest or os.path.join(
-        config2.DATA_DIR, f"aqs_daily_tx_v2_{years[0]}_{years[-1]}.parquet")
+        config2.DATA_DIR,
+        f"{config2.AQS_STEM}_{years[0]}_{years[-1]}.parquet")
 
     prev_failed = dx._read_failed_months(dest)
     if os.path.exists(dest) and not prev_failed:
@@ -472,10 +519,14 @@ def fetch_aqs_v2(years=None, dest=None):
         d = pd.read_csv(zp, usecols=_AQS_USECOLS_V2, low_memory=False,
                         dtype={"State Code": str, "County Code": str,
                                "Site Num": str})
-        d = d[(d["State Code"] == "48") & (d["Parameter Code"] == 88101)]
+        d = d[d["State Code"].isin(config2.STATE_FIPS)
+              & (d["Parameter Code"] == 88101)]
         if len(d):
             frames.append(d)
-        _say(f"aqs {y}: {len(d):,} Texas rows")
+        n_by = d["State Code"].value_counts()
+        _say(f"aqs {y}: {len(d):,} rows ("
+             + ", ".join(f"{s}={int(n_by.get(s, 0)):,}"
+                         for s in config2.STATE_FIPS) + ")")
     if not frames:
         raise RuntimeError("aqs: no data retrieved for any requested year "
                            "(REQUIRED source -- data stage cannot proceed).")
@@ -667,13 +718,16 @@ def fetch_merra2_slv(start, end, dest=None):
 
     Output columns: [lat, lon, date, merra2_t2m (degC), merra2_rh2m (%),
     merra2_u10, merra2_v10 (m/s), merra2_ps (Pa)] on the native 0.5 x 0.625
-    grid. OPTIONAL source: total failure returns None (downstream features
+    grid. Both the final (merra2_slv_{domain}_{window}) and the chunk dir
+    are domain-stamped — the content is bbox-clipped, and data/ + cache/
+    are shared across domains (tx keeps merra2_slv_tx_*, byte-identical).
+    OPTIONAL source: total failure returns None (downstream features
     stay NaN); failed months land in the sidecar and are retried first on
     the next call."""
     dx = _v1()
     dest = dest or os.path.join(
         config2.DATA_DIR,
-        f"merra2_slv_tx_{dx._window_tag(start, end)}.parquet")
+        f"merra2_slv_{config2.DOMAIN}_{dx._window_tag(start, end)}.parquet")
     prev_failed = []
     if os.path.exists(dest):
         prev_failed = dx._read_failed_months(dest)
@@ -687,8 +741,7 @@ def fetch_merra2_slv(start, end, dest=None):
             _say(f"merra2-slv: cached {dest} does not cover {start}..{end} "
                  "-- reassembling from month chunks")
     _ensure_dodsrc()
-    chunk_dir = os.path.join(config2.CACHE_DIR, "merra2_slv")
-    os.makedirs(chunk_dir, exist_ok=True)
+    chunk_dir = _dcache("merra2_slv")   # bbox-clipped chunks: domain-stamped
 
     frames, failed = [], []
     edges = dx._retry_failed_first(dx._month_edges(start, end), prev_failed)
@@ -741,11 +794,19 @@ def fetch_merra2_combined(start, end, dest=None):
     representation jitter); rows present on one side only carry NaN for the
     other side's columns — frame2 joins nearest-cell, so mixed availability
     degrades honestly per column. OPTIONAL: returns None when neither side
-    is available."""
+    is available.
+
+    Domain note: the v1 aerosol parquet is Texas-bbox by construction (v1
+    config.TX_BBOX is frozen — widening it would poison v1's own
+    merra2_daily_tx_* namespace), so under a non-tx domain the aerosol
+    columns are honest NaN outside Texas AND the SLV side is REQUIRED:
+    frame2's nearest-cell join has no distance cap, so an aerosol-only
+    combined under a wider domain would silently smear Texas cells across
+    the whole domain. The final is domain-stamped for the same reason."""
     dx = _v1()
     dest = dest or os.path.join(
         config2.DATA_DIR,
-        f"merra2_combined_{dx._window_tag(start, end)}.parquet")
+        f"{_dstem('merra2_combined')}_{dx._window_tag(start, end)}.parquet")
     if os.path.exists(dest) and dx._covers_window(dest, start, end) \
             and not dx._read_failed_months(dest) \
             and os.environ.get("FORCE") != "1":
@@ -761,6 +822,12 @@ def fetch_merra2_combined(start, end, dest=None):
         _say(f"merra2-combined: v1 aerosol fetch raised ({e}) -- "
              "continuing with SLV only")
     slv_path = fetch_merra2_slv(start, end)
+    if config2.DOMAIN != "tx" and slv_path is None:
+        _say("merra2-combined: SLV side unavailable and the v1 aerosol "
+             "parquet is Texas-bbox -- refusing an aerosol-only combined "
+             f"for domain {config2.DOMAIN!r} (nearest-cell joins would "
+             "smear Texas cells across the domain); skipped")
+        return None
 
     parts = []
     for name, path in (("aerosol", aer_path), ("slv", slv_path)):
@@ -901,17 +968,20 @@ def _hms_day_rows(ts, reader, pts):
 
 
 def fetch_hms_grid(start, end, dest=None):
-    """NOAA HMS smoke polygons -> 0.1-degree TX cell raster parquet or None.
+    """NOAA HMS smoke polygons -> 0.1-degree domain cell raster or None.
 
     Per-day shapefiles (zip, else loose triplet) parsed with pyshp — no
-    GDAL — and rasterized by point-in-polygon over the TX bbox cell
+    GDAL — and rasterized by point-in-polygon over the domain bbox cell
     centers. Rows exist ONLY for smoke-positive cells: frame2.hms_join
     treats a missing (cell, day) inside the raster's coverage window as
     tier 0 (no polygon = no smoke) and anything outside coverage as NaN,
     so absence encodes exactly one thing. A 404 day is an unmapped day and
     is treated as no-smoke (documented limitation: HMS analyst coverage,
     not physical absence); a transiently failing day fails its whole month
-    into the sidecar. Month-chunked and resumable; OPTIONAL source.
+    into the sidecar. Month-chunked and resumable; OPTIONAL source. The
+    final and the chunk dir are domain-stamped (bbox-clipped content in
+    shared dirs; tx keeps hms_grid_*, byte-identical); the raw per-day
+    shapefiles are national and deliberately SHARED across domains.
 
     Output columns: [cell_lat, cell_lon, date, hms_smoke (int8 1..3)]."""
     if not (HAS_PYSHP and HAS_MPL):
@@ -920,7 +990,8 @@ def fetch_hms_grid(start, end, dest=None):
         return None
     dx = _v1()
     dest = dest or os.path.join(
-        config2.DATA_DIR, f"hms_grid_{dx._window_tag(start, end)}.parquet")
+        config2.DATA_DIR,
+        f"{_dstem('hms_grid')}_{dx._window_tag(start, end)}.parquet")
     prev_failed = []
     if os.path.exists(dest):
         prev_failed = dx._read_failed_months(dest)
@@ -934,8 +1005,8 @@ def fetch_hms_grid(start, end, dest=None):
             _say(f"hms: cached {dest} does not cover {start}..{end} -- "
                  "reassembling from month chunks")
 
-    chunk_dir = os.path.join(config2.CACHE_DIR, "hms")
-    raw_dir = os.path.join(chunk_dir, "raw")
+    chunk_dir = _dcache("hms")          # bbox-rasterized chunks: stamped
+    raw_dir = os.path.join(config2.CACHE_DIR, "hms", "raw")   # national: shared
     os.makedirs(raw_dir, exist_ok=True)
     lat_axis, lon_axis = _grid_axes(config2.GRID_DEG, decimals=4)
     glon, glat = np.meshgrid(lon_axis, lat_axis)
@@ -1003,6 +1074,10 @@ def fetch_hms_grid(start, end, dest=None):
 # ═════════════════════════════════════════════════════════════════════════════
 
 def _statics_cache():
+    # Shared across domains on purpose: every raw file here is
+    # bbox-independent (ETOPO is global, TIGER zips are keyed per state
+    # FIPS, NEI summaries are national). The bbox-dependent statics OUTPUT
+    # is domain-stamped in fetch_statics instead.
     d = os.path.join(config2.CACHE_DIR, "statics")
     os.makedirs(d, exist_ok=True)
     return d
@@ -1064,7 +1139,16 @@ def _static_dem(lat_axis, lon_axis, qlat, qlon, quick):
 
 
 def _static_roads(lat_axis, lon_axis):
-    """(st_road_km_1km, st_road_km_5km): TIGER 2023 PRISECROADS TX density.
+    """(st_road_km_1km, st_road_km_5km): TIGER 2023 PRISECROADS density.
+
+    One state file per config2.STATE_FIPS (tx: 48 only, unchanged), each
+    cached per state under cache/statics (zip + extracted dir keyed by
+    FIPS), so a rerun skips already-fetched states. A failing state RAISES
+    and fails the whole roads sub-source: a partial-domain histogram would
+    encode "zero km of road" over the missing state — a structural-zero
+    lie, exactly what the never-fill principle forbids. TIGER state files
+    clip at the state boundary, so roads in out-of-domain states inside the
+    bbox are uncounted (same edge limitation the tx run has at NM/OK/LA).
 
     Each polyline is resampled every ~100 m; each sample carries its share
     of segment length (km) into a 2-D histogram on the lattice cells; box
@@ -1075,46 +1159,56 @@ def _static_roads(lat_axis, lon_axis):
     if not HAS_PYSHP:
         raise RuntimeError("pyshp not installed (pip install pyshp)")
     cache = _statics_cache()
-    zp, status = _probe_download(
-        TIGER_ROADS_URL, os.path.join(cache, "tl_2023_48_prisecroads.zip"))
-    if status != "ok":
-        raise RuntimeError(f"TIGER prisecroads download {status}")
-    exdir = os.path.join(cache, "tl_2023_48_prisecroads")
-    if not os.path.isdir(exdir):
-        with zipfile.ZipFile(zp) as zf:
-            zf.extractall(exdir + ".tmp")
-        os.replace(exdir + ".tmp", exdir)
-    shp = glob.glob(os.path.join(exdir, "*.shp"))
-    if not shp:
-        raise RuntimeError("no .shp member in TIGER zip")
 
     slat, slon, sw = [], [], []
-    rd = _pyshp.Reader(shp[0])
-    for shape in rd.iterShapes():
-        xy = np.asarray(shape.points, dtype=np.float64)
-        if len(xy) < 2:
-            continue
-        parts = list(shape.parts) + [len(xy)]
-        for a, b in zip(parts[:-1], parts[1:]):
-            p = xy[a:b]
-            if len(p) < 2:
+    for fips in config2.STATE_FIPS:
+        stem = f"tl_2023_{fips}_prisecroads"
+        zp, status = _probe_download(TIGER_ROADS_URL.format(fips=fips),
+                                     os.path.join(cache, stem + ".zip"))
+        if status != "ok":
+            raise RuntimeError(
+                f"TIGER prisecroads download {status} for state {fips}")
+        exdir = os.path.join(cache, stem)
+        if not os.path.isdir(exdir):
+            with zipfile.ZipFile(zp) as zf:
+                zf.extractall(exdir + ".tmp")
+            os.replace(exdir + ".tmp", exdir)
+        shp = glob.glob(os.path.join(exdir, "*.shp"))
+        if not shp:
+            raise RuntimeError(f"no .shp member in TIGER zip for state {fips}")
+
+        n_before = len(sw)
+        rd = _pyshp.Reader(shp[0])
+        for shape in rd.iterShapes():
+            xy = np.asarray(shape.points, dtype=np.float64)
+            if len(xy) < 2:
                 continue
-            lon0, lat0 = p[:-1, 0], p[:-1, 1]
-            lon1, lat1 = p[1:, 0], p[1:, 1]
-            latm = 0.5 * (lat0 + lat1)
-            dxk = (lon1 - lon0) * KM_PER_DEG_LON_EQ * np.cos(np.radians(latm))
-            dyk = (lat1 - lat0) * KM_PER_DEG_LAT
-            seg = np.hypot(dxk, dyk)
-            n = np.maximum(1, np.ceil(seg / ROAD_SAMPLE_KM).astype(np.int64))
-            reps = np.repeat(np.arange(len(seg)), n)
-            offs = np.arange(int(n.sum())) - np.repeat(np.cumsum(n) - n, n)
-            frac = (offs + 0.5) / np.repeat(n, n)
-            slat.append(lat0[reps] + (lat1 - lat0)[reps] * frac)
-            slon.append(lon0[reps] + (lon1 - lon0)[reps] * frac)
-            sw.append(np.repeat(seg / n, n))
-    rd.close()
+            parts = list(shape.parts) + [len(xy)]
+            for a, b in zip(parts[:-1], parts[1:]):
+                p = xy[a:b]
+                if len(p) < 2:
+                    continue
+                lon0, lat0 = p[:-1, 0], p[:-1, 1]
+                lon1, lat1 = p[1:, 0], p[1:, 1]
+                latm = 0.5 * (lat0 + lat1)
+                dxk = (lon1 - lon0) * KM_PER_DEG_LON_EQ \
+                    * np.cos(np.radians(latm))
+                dyk = (lat1 - lat0) * KM_PER_DEG_LAT
+                seg = np.hypot(dxk, dyk)
+                n = np.maximum(1, np.ceil(seg / ROAD_SAMPLE_KM)
+                               .astype(np.int64))
+                reps = np.repeat(np.arange(len(seg)), n)
+                offs = np.arange(int(n.sum())) - np.repeat(np.cumsum(n) - n, n)
+                frac = (offs + 0.5) / np.repeat(n, n)
+                slat.append(lat0[reps] + (lat1 - lat0)[reps] * frac)
+                slon.append(lon0[reps] + (lon1 - lon0)[reps] * frac)
+                sw.append(np.repeat(seg / n, n))
+        rd.close()
+        if len(sw) == n_before:
+            raise RuntimeError(
+                f"TIGER shapefile for state {fips} yielded no polylines")
     if not slat:
-        raise RuntimeError("TIGER shapefile yielded no polylines")
+        raise RuntimeError("TIGER shapefiles yielded no polylines")
     slat = np.concatenate(slat)
     slon = np.concatenate(slon)
     sw = np.concatenate(sw)
@@ -1160,11 +1254,17 @@ def _nei_columns(cols):
 def _nei_facilities(year, cache):
     """Facility PM25-PRI short tons at (lat, lon) for one NEI year.
 
-    Tries the facility-level summary zips first (smaller), then the
-    by-regions process file (Texas is EPA region 6 — only that member is
-    parsed). Facilities are bbox-filtered on coordinates rather than state
-    strings (robust across vintages). Unknown emission units are dropped
-    with a printed count, never assumed."""
+    Tries the facility-level summary zips first (smaller, national), then
+    the by-regions process file — its members are selected by the domain
+    states' EPA regions (EPA_REGION_BY_FIPS; tx: region 6 only, unchanged)
+    and parsed FIRST-PRODUCTIVE-MEMBER-PER-REGION: a later member matching
+    only already-served regions (e.g. a second per-sector file for region 6)
+    is skipped so no facility is double-counted, while every remaining
+    region of a multistate domain is still parsed. Facilities are bbox-filtered on
+    coordinates rather than state strings (robust across vintages), so
+    bbox fringes outside the domain states' regions are covered only by
+    the national summary path — a documented fallback limitation. Unknown
+    emission units are dropped with a printed count, never assumed."""
     urls = [
         f"https://gaftp.epa.gov/air/nei/{year}/data_summaries/"
         f"Facility%20Level%20by%20Pollutant.zip",
@@ -1194,15 +1294,34 @@ def _nei_facilities(year, cache):
             raise RuntimeError(f"NEI {year} zip has no csv members")
         regional = [n for n in members if "region" in n.lower()]
         if regional:
-            six = [n for n in regional if "6" in os.path.basename(n)]
-            members = six or regional
+            want = {EPA_REGION_BY_FIPS[f] for f in config2.STATE_FIPS
+                    if f in EPA_REGION_BY_FIPS}
+            unmapped = [f for f in config2.STATE_FIPS
+                        if f not in EPA_REGION_BY_FIPS]
+            if unmapped:
+                _say(f"statics/nei {year}: state(s) {unmapped} lack an EPA "
+                     "region mapping -- parsing every regional member")
+            hits = [n for n in regional
+                    if any(r in os.path.basename(n) for r in want)]
+            members = regional if unmapped else (hits or regional)
+        done_regions = set()
         for name in members:
+            # Regional path: at most ONE productive member per wanted region.
+            # A member matching only regions that already had a productive
+            # member is a per-sector duplicate — parsing it would sum the
+            # same facilities twice. A member matching no wanted region
+            # (unmapped-FIPS superset fallback) is always parsed.
+            matched = ({r for r in want if r in os.path.basename(name)}
+                       if regional else set())
+            if matched and matched <= done_regions:
+                continue
             with zf.open(name) as fh:
                 head = pd.read_csv(fh, nrows=0)
             cols = _nei_columns(head.columns)
             if not all(cols[k] for k in ("lat", "lon", "poll", "emis")):
                 continue
             use = [v for v in cols.values() if v]
+            member_rows = 0
             with zf.open(name) as fh:
                 for chunk in pd.read_csv(fh, usecols=use, chunksize=250_000,
                                          low_memory=False):
@@ -1226,11 +1345,21 @@ def _nei_facilities(year, cache):
                             & np.isfinite(emis)
                             & (lat >= bb["lat_min"]) & (lat <= bb["lat_max"])
                             & (lon >= bb["lon_min"]) & (lon <= bb["lon_max"]))
+                    member_rows += int(keep.sum())
                     for la, lo_, em in zip(lat[keep], lon[keep], emis[keep]):
                         key = (round(float(la), 5), round(float(lo_), 5))
                         acc[key] = acc.get(key, 0.0) + float(em)
-            if acc:
+            # National summary path: first productive member wins (v2
+            # behavior). Regional path: first productive member PER wanted
+            # region — the member's regions are marked served so per-sector
+            # duplicates are skipped above, while the loop continues to the
+            # remaining regions of a multistate domain (breaking here would
+            # drop them).
+            if not member_rows:
+                continue
+            if not regional:
                 break
+            done_regions |= matched
     if not acc:
         raise RuntimeError(f"NEI {year}: no PM25-PRI facilities parsed")
     pts = np.asarray(list(acc.keys()), dtype=np.float64)
@@ -1282,9 +1411,20 @@ def _static_pop(qlat, qlon):
     centroid spacing: area_i ~ pi * d3_i^2 / 3 with d3 the distance to the
     3rd-nearest centroid (union of purpleair + backend tract_lookup
     centroids for spacing). ROUGH by construction — a coverage-density
-    proxy, not a census areal density — and documented as such."""
+    proxy, not a census areal density — and documented as such.
+
+    Texas-scoped by its sources: the committed purpleair parquet and the
+    backend tract lookup carry Texas tracts only, and the nearest-tract
+    query has no distance cap, so a wider domain would silently inherit
+    Texas densities everywhere. Non-tx domains therefore RAISE (the column
+    stays absent — honest) until a domain-wide tract source exists."""
     if not HAS_SCIPY:
         raise RuntimeError("scipy not installed (pip install scipy)")
+    if config2.DOMAIN != "tx":
+        raise RuntimeError(
+            "committed tract-centroid sources are Texas-scoped; a "
+            f"nearest-tract proxy would smear Texas densities across "
+            f"domain {config2.DOMAIN!r} -- st_pop_density stays absent")
     pa_path = os.path.join(config2.PIPELINE_DIR,
                            "purpleair_full_dataset.parquet")
     if not os.path.exists(pa_path):
@@ -1392,9 +1532,12 @@ def _static_imperv(qlat, qlon):
 def fetch_statics(quick=False, dest=None):
     """Committed statics -> pipeline/static_covariates.parquet path or None.
 
-    A 0.01-degree lattice over TX_BBOX (0.05 under --quick, written to a
-    _quick-suffixed file so a smoke-test lattice can never poison the
-    committed statics — same reasoning as the window-stamped fetch dests)
+    A 0.01-degree lattice over the domain bbox (0.05 under --quick, written
+    to a _quick-suffixed file so a smoke-test lattice can never poison the
+    committed statics; non-tx domains get a domain-stamped file for the
+    same reason — pipeline/ is shared, and the committed Texas
+    static_covariates.parquet must neither be overwritten by nor served to
+    a wider domain)
     with columns lat, lon [, year] + whichever of st_elev, st_road_km_1km,
     st_road_km_5km, st_nei_pm25_5km, st_nei_pm25_20km, st_pop_density,
     st_imperv_1km could be built. Sub-sources are INDEPENDENT: one failing
@@ -1414,8 +1557,8 @@ def fetch_statics(quick=False, dest=None):
     step = STATICS_STEP_QUICK if quick else STATICS_STEP
     dest = dest or os.path.join(
         config2.PIPELINE_DIR,
-        "static_covariates_quick.parquet" if quick
-        else "static_covariates.parquet")
+        _dstem("static_covariates") + ("_quick" if quick else "")
+        + ".parquet")
     if os.path.exists(dest) and os.environ.get("FORCE") != "1":
         _say(f"statics: {dest} exists (FORCE=1 to rebuild) -- skip")
         return dest
@@ -1522,33 +1665,59 @@ def _best_glob(patterns, require_rows=False):
 def write_external_paths():
     """Write artifact external_paths.json -> its path (the frame2 registry).
 
-    Keys {aqs, pa_daily, geoscf, merra2, cams, met_extra, hms_grid}, each
-    included ONLY when its file exists (frame2 skips missing keys loudly;
-    an absent key is honest degradation, a dead path is a crash). geoscf is
-    located by glob in V1_DIR/data (the v1 window-stamped final); merra2
-    prefers the combined parquet, then v1 aerosol-only, then SLV-only."""
+    Keys {aqs, pa_daily, geoscf, merra2, cams, met_extra, hms_grid} (plus
+    `statics` for non-tx domains), each included ONLY when its file exists
+    (frame2 skips missing keys loudly; an absent key is honest degradation,
+    a dead path is a crash). merra2 prefers the combined parquet, then
+    aerosol-only, then SLV-only.
+
+    Domain routing: every bbox-dependent candidate resolves through the
+    domain-stamped stems, and the `_[0-9]*` glob tails only admit
+    window-tagged files — so a west7 final in the shared data/ dir can
+    never be registered for tx, nor vice versa. The v1 Texas products
+    (V1_DIR/data geoscf + merra2 aerosol, the committed by-cell pipeline
+    parquets, pipeline statics) are offered to the tx domain ONLY: frame2's
+    nearest-cell joins carry no distance cap, so registering a Texas-bbox
+    file for a wider domain would silently smear Texas values across it.
+    pa_daily stays unstamped by design (EXPANSION Phase 1: the TX archive
+    is the PA source for every domain, config2.PA_STATE_FIPS)."""
     v1_data = os.path.join(config2.V1_DIR, "data")
+    tx = config2.DOMAIN == "tx"
+    geoscf_pats = [os.path.join(config2.DATA_DIR,
+                                _dstem("geoscf_pm25") + "_[0-9]*.parquet")]
+    merra2_fallback_pats = [os.path.join(
+        config2.DATA_DIR,
+        f"merra2_slv_{config2.DOMAIN}_[0-9]*.parquet")]
+    if tx:
+        geoscf_pats.insert(0, os.path.join(v1_data,
+                                           "geoscf_pm25_[0-9]*.parquet"))
+        merra2_fallback_pats.insert(0, os.path.join(
+            v1_data, "merra2_daily_tx_[0-9]*.parquet"))
     cand = {
         "aqs": _best_glob(
-            [os.path.join(config2.DATA_DIR, "aqs_daily_tx_v2_*.parquet")]),
+            [os.path.join(config2.DATA_DIR,
+                          config2.AQS_STEM + "_*.parquet")]),
         "pa_daily": os.path.join(config2.PIPELINE_DIR,
                                  "purpleair_full_dataset.parquet"),
-        "geoscf": _best_glob(
-            [os.path.join(v1_data, "geoscf_pm25_*.parquet"),
-             os.path.join(config2.DATA_DIR, "geoscf_pm25_*.parquet")]),
+        "geoscf": _best_glob(geoscf_pats),
         "merra2": _best_glob(
-            [os.path.join(config2.DATA_DIR, "merra2_combined_*.parquet")]) \
-            or _best_glob(
-            [os.path.join(v1_data, "merra2_daily_tx_*.parquet"),
-             os.path.join(config2.DATA_DIR, "merra2_slv_tx_*.parquet")]),
+            [os.path.join(config2.DATA_DIR,
+                          _dstem("merra2_combined") + "_[0-9]*.parquet")]) \
+            or _best_glob(merra2_fallback_pats),
         "cams": os.path.join(config2.PIPELINE_DIR,
-                             "airquality_by_cell.parquet"),
+                             _dstem("airquality_by_cell") + ".parquet"),
         "met_extra": os.path.join(config2.PIPELINE_DIR,
-                                  "met_extra_by_cell.parquet"),
+                                  _dstem("met_extra_by_cell") + ".parquet"),
         "hms_grid": _best_glob(
-            [os.path.join(config2.DATA_DIR, "hms_grid_*.parquet")],
+            [os.path.join(config2.DATA_DIR,
+                          _dstem("hms_grid") + "_[0-9]*.parquet")],
             require_rows=True),
     }
+    if not tx:
+        # frame2's default statics path is the committed Texas lattice;
+        # route non-tx frames to the domain-stamped file (or omit, loudly).
+        cand["statics"] = os.path.join(
+            config2.PIPELINE_DIR, _dstem("static_covariates") + ".parquet")
     paths = {}
     for key, path in cand.items():
         if path and os.path.exists(path):
@@ -1631,7 +1800,7 @@ def run_data(quick=False, start=None, end=None, years=None):
     (OPTIONAL, warn-and-continue) + the external_paths.json registry."""
     sentinel = config2.artifact("external_paths.json")
     have_aqs = _best_glob(
-        [os.path.join(config2.DATA_DIR, "aqs_daily_tx_v2_*.parquet")])
+        [os.path.join(config2.DATA_DIR, config2.AQS_STEM + "_*.parquet")])
     if (os.path.exists(sentinel) and have_aqs
             and os.environ.get("FORCE") != "1"):
         _say(f"{sentinel} + aqs v2 parquet exist (FORCE=1 to re-run) -- skip")
@@ -1667,8 +1836,8 @@ def run_data(quick=False, start=None, end=None, years=None):
 def run_statics(quick=False):
     dest = os.path.join(
         config2.PIPELINE_DIR,
-        "static_covariates_quick.parquet" if quick
-        else "static_covariates.parquet")
+        _dstem("static_covariates") + ("_quick" if quick else "")
+        + ".parquet")
     if os.path.exists(dest) and os.environ.get("FORCE") != "1":
         _say(f"{dest} exists (FORCE=1 to rebuild) -- skip")
         return 0

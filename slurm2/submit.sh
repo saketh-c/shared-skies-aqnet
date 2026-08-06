@@ -13,8 +13,17 @@
 # holds the chain visibly (DependencyNeverSatisfied) instead of cascading.
 #
 # FORCE=1 is a per-job env var read inside each sbatch, never handled here.
+#
+# Domain: `AQNET2_DOMAIN=west7 bash submit.sh` runs the whole chain against
+# the west7 namespace (artifacts/v3). The export below pins the caller's
+# value (default tx) so every sbatch here — the chain3 self-chain links
+# included — records the SAME domain in its job environment (--export=ALL
+# is sbatch's default); common.sh re-defaults inside each job, so a bare
+# resubmission of a single sbatch still resolves to tx. Re-running THIS
+# script after a preemption must repeat the same AQNET2_DOMAIN.
 set -euo pipefail
 S=$HOME/scratch/aqnet/repo/slurm2
+export AQNET2_DOMAIN=${AQNET2_DOMAIN:-tx}
 mkdir -p $HOME/scratch/aqnet/logs
 
 chain3 () {  # chain3 <dep-jobid> <sbatch-file> -> echoes last link's jobid
@@ -47,7 +56,8 @@ VAL=$(sbatch --parsable --dependency=afterok:$UQ "$S/aq2-validate.sbatch")
 # vault has been consumed (serving bundle + demo surface, gpu-rtx6000):
 # EXP=$(sbatch --parsable --dependency=afterok:$VAL "$S/aq2-export.sbatch")
 
-echo "submitted: audit=$AUDIT data-pa=$DATAPA data=$DATA statics=$STAT" \
+echo "submitted (domain=$AQNET2_DOMAIN):" \
+     "audit=$AUDIT data-pa=$DATAPA data=$DATA statics=$STAT" \
      "colocate=$COLO calibrate=$CAL priors=$PRI features=$FEAT" \
      "skeleton=$SKEL graphpre..=$GPRE graphres..=$GRES fieldpre..=$FPRE" \
      "fieldres..=$FRES gates=$GATE exceed=$EXC uq=$UQ validate=$VAL"

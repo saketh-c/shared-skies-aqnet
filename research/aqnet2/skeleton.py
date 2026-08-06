@@ -1137,11 +1137,12 @@ def main(argv=None):
     ap.add_argument("--quick", action="store_true",
                     help="2 outer folds, LOSO capped at 4, small rounds")
     ap.add_argument("--frame", default=None,
-                    help="frame_truth.parquet (default: artifacts/v2)")
+                    help="frame_truth.parquet (default: config2.ARTIFACTS_DIR)")
     ap.add_argument("--folds", default=None,
-                    help="folds2.json (default: artifacts/v2)")
+                    help="folds2.json (default: config2.ARTIFACTS_DIR)")
     ap.add_argument("--out", default=None,
-                    help="output npz (default: artifacts/v2/oof_tier1.npz)")
+                    help="output npz (default: oof_tier1.npz under "
+                         "config2.ARTIFACTS_DIR)")
     args = ap.parse_args(argv)
     return run_skeleton(quick=args.quick, frame_path=args.frame,
                         folds_path=args.folds, out_path=args.out)

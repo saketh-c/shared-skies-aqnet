@@ -102,12 +102,14 @@ def build_results_md(run_name):
 
     lines = []
     a = lines.append
-    a(f"# AQNet v2 — {run_name} — Model Card & Results")
+    a(f"# AQNet {config2.DOMAIN_SPEC['artifacts']} — {run_name} — "
+      f"Model Card & Results")
     a("")
-    a("Every number in this document was computed by the pipeline and read "
-      "from `research/aqnet2/artifacts/v2` at assembly time by "
-      "`make_results.py`; nothing is hand-entered. Absent metrics read "
-      "\"not computed\".")
+    a(f"Every number in this document was computed by the pipeline and read "
+      f"from `research/aqnet2/artifacts/{config2.DOMAIN_SPEC['artifacts']}` "
+      f"at assembly time by "
+      f"`make_results.py`; nothing is hand-entered. Absent metrics read "
+      f"\"not computed\".")
     a("")
     a(f"- **Pipeline git sha:** {sha or 'not recorded'}")
     a(f"- **Target:** EPA AQS FRM/FEM anchor + calibrated PurpleAir "
@@ -271,9 +273,18 @@ def build_results_md(run_name):
     return "\n".join(lines) + "\n"
 
 
+# Shipped run names, keyed by config2.DOMAIN. tx is FROZEN: the committed
+# v2 package lives at results/v2_texas_202608. Domains without a shipped
+# name default to "<artifacts>_<domain>" (override with --run-name).
+_RUN_NAME_DEFAULTS = {"tx": "v2_texas_202608"}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--run-name", default="v2_texas_202608")
+    ap.add_argument("--run-name",
+                    default=_RUN_NAME_DEFAULTS.get(
+                        config2.DOMAIN,
+                        f"{config2.DOMAIN_SPEC['artifacts']}_{config2.DOMAIN}"))
     ap.add_argument("--no-figs", action="store_true")
     args = ap.parse_args(argv)
 

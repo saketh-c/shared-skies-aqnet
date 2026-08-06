@@ -81,7 +81,11 @@ AQS_V1_PARQUET = os.path.join(config2.V1_DIR, "data", "aqs_daily_tx.parquet")
 
 EARTH_RADIUS_KM = 6371.0088          # identical to colocate.py: fold geometry
                                      # and pair geometry must agree
-REF_LAT_DEG = 31.0                   # TX mid-latitude for the equirect proj
+# Domain mid-latitude for the equirect projection, to the nearest degree
+# (config2.TX_BBOX is THE domain bbox). tx: 31.0 — bit-identical to the
+# frozen v2 constant; west7: 37.0.
+_BB = config2.TX_BBOX
+REF_LAT_DEG = float(round((_BB["lat_min"] + _BB["lat_max"]) / 2.0))
 KM_PER_DEG_LAT = 110.574
 KM_PER_DEG_LON = 111.320 * float(np.cos(np.radians(REF_LAT_DEG)))
 
@@ -134,8 +138,9 @@ def _equirect_xy(lat, lon):
     """Equirectangular km coordinates for clustering.
 
     DESIGN S2 names EPSG:3083 (TX Albers). We approximate with an
-    equirectangular projection at REF_LAT_DEG = 31 N -- documented
-    deviation: across the TX bbox the relative distance distortion vs Albers
+    equirectangular projection at the domain mid-latitude REF_LAT_DEG
+    (31 N for tx) -- documented
+    deviation: across the domain bbox the relative distance distortion vs Albers
     is small (single-digit percent), it needs no pyproj/GDAL dependency, and
     -- decisive for a fold system -- the arithmetic is bit-reproducible
     everywhere numpy runs. Offsets are irrelevant to k-means distances.
@@ -294,8 +299,11 @@ def load_aqs_site_index(aqs_parquet=None):
     """Per-site index [site_id(str), lat, lon, pm_mean, n_days].
 
     Source preference: an explicit path argument, then a fetchers2-hardened
-    v2 copy at config2.artifact("aqs_daily_tx.parquet") when present, then
-    the committed v1 parquet. Coordinates are per-site medians; dates are
+    domain copy at config2.artifact(f"aqs_daily_{config2.DOMAIN}.parquet")
+    when present, then (tx ONLY) the committed v1 parquet — a non-tx domain
+    with no fetched parquet raises loudly instead: Texas-only sites under a
+    wider domain would silently build wrong folds (loud omission, never a
+    wrong-domain fill). Coordinates are per-site medians; dates are
     normalized to datetime64[ns] (the committed AQS parquet is
     datetime64[us] -- audited pandas-3 hazard).
     """
@@ -305,10 +313,20 @@ def load_aqs_site_index(aqs_parquet=None):
         # widest-window v2 parquet — NEVER sorted(glob)[-1]: a quick-window
         # refetch stamp sorts after the full-window one and silently shrinks
         # the site index, which Phase 2 then rejects against the frame),
-        # then a hand-placed artifact copy, then the committed v1 parquet.
-        art = config2.artifact("aqs_daily_tx.parquet")
+        # then a hand-placed artifact copy, then (tx only) the committed v1
+        # parquet.
+        art = config2.artifact(f"aqs_daily_{config2.DOMAIN}.parquet")
         path = (config2.canonical_aqs_path()
-                or (art if os.path.exists(art) else AQS_V1_PARQUET))
+                or (art if os.path.exists(art) else None))
+        if path is None:
+            if config2.DOMAIN != "tx":
+                raise FileNotFoundError(
+                    f"no AQS daily parquet for domain '{config2.DOMAIN}' "
+                    f"(expected {config2.AQS_STEM}_*.parquet under "
+                    f"{config2.DATA_DIR}) -- fetch stage not yet run for "
+                    f"domain {config2.DOMAIN}; the committed Texas parquet "
+                    "is tx-only and is never substituted")
+            path = AQS_V1_PARQUET
     if not os.path.exists(path):
         raise FileNotFoundError(f"AQS daily parquet not found: {path}")
     aq = pd.read_parquet(path, columns=["site_id", "date", "pm25_aqs",

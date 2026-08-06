@@ -1876,9 +1876,9 @@ def main(argv=None):
                     help="capped bootstraps/kriging/bare-site/parity; "
                          "NEVER opens the vault")
     ap.add_argument("--frame", default=None,
-                    help="frame_truth.parquet (default: artifacts/v2)")
+                    help="frame_truth.parquet (default: config2.ARTIFACTS_DIR)")
     ap.add_argument("--folds", default=None,
-                    help="folds2.json (default: artifacts/v2)")
+                    help="folds2.json (default: config2.ARTIFACTS_DIR)")
     args = ap.parse_args(argv)
     return run_validate(quick=args.quick, frame_path=args.frame,
                         folds_path=args.folds)
