@@ -1421,6 +1421,13 @@ def _feature_parity(frame, folds, ext, quick):
             continue
         a = frame[c].to_numpy(dtype=np.float64)[pick]
         b = rebuilt[c].to_numpy(dtype=np.float64)
+        # Normalize signed zeros before the bit comparison: -0.0 == +0.0
+        # numerically but differs bitwise, and regression-output columns
+        # (t0_*) legitimately produce either sign at clamped values. The
+        # criterion's intent is "no numerically different features" — NaN
+        # patterns and every other bit stay strict.
+        a = a + 0.0
+        b = b + 0.0
         equal, n_diff = _bits_equal(a, b)
         if not equal:
             both = np.isfinite(a) & np.isfinite(b)
