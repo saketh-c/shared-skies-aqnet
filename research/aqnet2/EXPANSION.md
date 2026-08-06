@@ -76,6 +76,19 @@ a real effect >=0.04. Either outcome is reported.
   the Texas encoders (documented; self-supervised pretraining continues on
   the expanded data either way).
 
+## Registered v3 run defaults
+
+* `AQNET2_FORCE_ESCAPE=1`: T1 candidate A (GPBoost Vecchia) is escaped by
+  default in v3. Evidence: the v2 full run's first candidate-A fit exceeded
+  3.4 h wall (~190 h projected vs the 10 h budget), and the v3 QUICK smoke's
+  47k-row timing fit alone ran >50 min without completing — at 5-8x v2 scale
+  the full protocol is out of budget by orders of magnitude. Candidate B
+  (ensemble + krige, the v2 shipped T1) carries the ladder; the decision is
+  recorded per-run in oof_tier1.npz weights_json as decision=budget_escape.
+* GEOS-CF and the Texas-scoped statics population column are ABSENT for the
+  west7 states (loud omission, never a Texas fill) until domain-wide
+  fetchers are written; the T0 prior runs on its remaining streams.
+
 ## Decision gates (owner)
 
 1. PurpleAir historical acquisition for 6 new states — API point spend.
