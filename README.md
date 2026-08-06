@@ -17,7 +17,7 @@ architecture did not deliver, and every v2 design decision cites that evidence.
 The original v1 README is preserved, clearly marked as outdated, at the bottom
 of this file.
 
-## Where things stand (August 2026)
+## Where things stand (August 6, 2026)
 
 **v1 is finished and its verdict is in.** The definitive leak-free full run
 (Aug 2026, GT PACE Phoenix) is committed in
