@@ -1,0 +1,44 @@
+{
+  "feature_parity": {
+    "passed": true,
+    "n_sampled_rows": 2000,
+    "seed": 42,
+    "window": [
+      "2021-01-01",
+      "2026-05-01"
+    ],
+    "n_feature_columns": 63,
+    "skipped_columns_not_rebuilt": [],
+    "mismatched_columns": {},
+    "ulp_tolerated_columns": {
+      "t0_prior": {
+        "n_bit_mismatch": 8,
+        "max_abs_diff_finite": 5.329070518200751e-15,
+        "rel_diff": 6.174273451111759e-17
+      },
+      "t0_geoscf_pm25": {
+        "n_bit_mismatch": 3,
+        "max_abs_diff_finite": 7.549516567451064e-15,
+        "rel_diff": 1.2723377016291685e-16
+      },
+      "t0_cams_pm25": {
+        "n_bit_mismatch": 7,
+        "max_abs_diff_finite": 1.2434497875801753e-14,
+        "rel_diff": 3.378846972089909e-16
+      },
+      "t0_merra2_pm25_proxy": {
+        "n_bit_mismatch": 7,
+        "max_abs_diff_finite": 8.881784197001252e-15,
+        "rel_diff": 8.141412919458183e-17
+      }
+    },
+    "note": "stored frame features vs frame2.build_point_features rebuild, BIT-for-bit on a seeded inner-row sample; t0_* model-evaluated columns carry a documented 1e-12 relative tolerance (BLAS reduction order)"
+  },
+  "gates_reapplication": {
+    "passed": true,
+    "chain_matches": "post_t4_replay",
+    "chain_notes": [],
+    "note": "oof_final == post-T3 chain + deterministic t4_recalibrate replay (vault/conformal-masked fit), bit-for-bit"
+  },
+  "passed": true
+}

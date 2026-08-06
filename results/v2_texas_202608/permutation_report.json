@@ -1,0 +1,35 @@
+{
+  "base_r2": 0.3666174205906577,
+  "base_reprediction_metrics": {
+    "r2": 0.3666174205906577,
+    "rmse": 5.031541558706841,
+    "mae": 3.044038481967416,
+    "bias": 0.6927688330430496,
+    "n": 62223
+  },
+  "n_features": 63,
+  "groups": {
+    "portable": 0.09822273592385711,
+    "interpolating": 0.3425166243386032
+  },
+  "groups_note": "delta pooled R2 when the whole set is permuted jointly",
+  "top15_single_features": {
+    "nbr_pacal_100km": 0.15527800639650224,
+    "nbr_pacal_50km": 0.062615997890343,
+    "t0_prior": 0.01684718512946104,
+    "nbr_pacal_25km": 0.011226097170652705,
+    "t0_merra2_pm25_proxy": 0.010648961700050252,
+    "merra2_pm25_proxy": 0.006381344437973668,
+    "merra2_t2m": 0.0062752782846474675,
+    "nbr_frm_50km_lag1": 0.005901159393060462,
+    "merra2_dust25": 0.004097239523856322,
+    "cams_pm25": 0.003968573058747982,
+    "merra2_bc": 0.003967605072651037,
+    "merra2_v10": 0.003704608950766075,
+    "t0_cams_pm25": 0.0036603168147163467,
+    "nbr_pacal_count_100km_lag1": 0.003221041133524616,
+    "merra2_ss25": 0.002616918649856803
+  },
+  "singles_note": "delta pooled R2 when the single column is permuted",
+  "seed": 42
+}

@@ -1,0 +1,1672 @@
+{
+  "margins_source": "power_analysis.json",
+  "notes": {
+    "t1": "the incumbent itself \u2014 the composite must be non-inferior to it by construction",
+    "t1_weights": {
+      "candidates": {
+        "gpboost": "gpboost: lgbm fixed effects + matern-3/2 vecchia(m=30) GP + unit/day random effects, precision-weighted",
+        "ensemble_krige": "v1 train_cv blend (unweighted, clip>=0) + per-day residual krige of OOF residuals (train-fold only)"
+      },
+      "decision": "budget_escape",
+      "winner": "ensemble_krige",
+      "loser": "gpboost",
+      "escape": {
+        "triggered": true,
+        "threshold_seconds": 720.0,
+        "budget_hours": 10.0,
+        "first_fit_seconds": null
+      },
+      "selection": null,
+      "lambda": {
+        "grid": [
+          1.0,
+          0.5,
+          2.0
+        ],
+        "chosen": 1.0,
+        "scores": {}
+      },
+      "blend": {
+        "0": {
+          "weights_pooled": {
+            "lgbm": 0.1551155252771247,
+            "xgb": 0.01677495212065421,
+            "catboost": 0.01772833285110604,
+            "rf": 0.8103811897511151
+          },
+          "weights_lofo": [
+            {
+              "lgbm": 0.19127579931154645,
+              "xgb": 6.285913940458513e-18,
+              "catboost": 0.040956263124950494,
+              "rf": 0.7677679375635029
+            },
+            {
+              "lgbm": 0.14321965268839346,
+              "xgb": 0.010565139065827503,
+              "catboost": 0.013443754579579728,
+              "rf": 0.8327714536661993
+            },
+            {
+              "lgbm": 0.138243928655534,
+              "xgb": 0.054061337362820455,
+              "catboost": 0.008282372561874373,
+              "rf": 0.7994123614197711
+            },
+            {
+              "lgbm": 0.17831521552976004,
+              "xgb": 4.486514636844341e-19,
+              "catboost": 0.001166485570246334,
+              "rf": 0.8205182988999936
+            },
+            {
+              "lgbm": 0.062349924447575644,
+              "xgb": 0.017756733523055967,
+              "catboost": 0.07701982749567592,
+              "rf": 0.8428735145336925
+            },
+            {
+              "lgbm": 0.10316793698134336,
+              "xgb": 0.03267650037003386,
+              "catboost": 0.029310280807252634,
+              "rf": 0.8348452818413702
+            },
+            {
+              "lgbm": 0.15365727312669272,
+              "xgb": 0.01333454957185702,
+              "catboost": 0.003495442802887832,
+              "rf": 0.8295127344985624
+            },
+            {
+              "lgbm": 0.18010992134540077,
+              "xgb": 0.0,
+              "catboost": 9.375708984315055e-19,
+              "rf": 0.8198900786545992
+            },
+            {
+              "lgbm": 0.1447195310682908,
+              "xgb": 0.029428932504722113,
+              "catboost": 0.017242007018848548,
+              "rf": 0.8086095294081386
+            },
+            {
+              "lgbm": 0.20074454677285766,
+              "xgb": 0.08098880330244533,
+              "catboost": 0.0,
+              "rf": 0.718266649924697
+            }
+          ],
+          "internal_cv_r2": 0.6590430344144631
+        },
+        "1": {
+          "weights_pooled": {
+            "lgbm": 0.029649946076785262,
+            "xgb": 0.28100060328896315,
+            "catboost": 0.25761811529210304,
+            "rf": 0.4317313353421485
+          },
+          "weights_lofo": [
+            {
+              "lgbm": 0.03037524679650449,
+              "xgb": 0.3648705790886606,
+              "catboost": 0.27383115563423105,
+              "rf": 0.3309230184806039
+            },
+            {
+              "lgbm": 0.0,
+              "xgb": 0.048350208270773284,
+              "catboost": 0.34965784814426426,
+              "rf": 0.6019919435849624
+            },
+            {
+              "lgbm": 1.5533481887969094e-17,
+              "xgb": 0.19794925686800638,
+              "catboost": 0.4327347042755144,
+              "rf": 0.36931603885647907
+            },
+            {
+              "lgbm": 0.12293076923216832,
+              "xgb": 0.2628708617608527,
+              "catboost": 0.08204139938972589,
+              "rf": 0.5321569696172531
+            },
+            {
+              "lgbm": 0.015863931171480068,
+              "xgb": 0.3693324794319443,
+              "catboost": 0.24395710964497808,
+              "rf": 0.3708464797515975
+            },
+            {
+              "lgbm": 0.10814360641936156,
+              "xgb": 0.3190942384678625,
+              "catboost": 0.03441655260134219,
+              "rf": 0.5383456025114337
+            },
+            {
+              "lgbm": 0.022096785735214154,
+              "xgb": 0.2718545989510917,
+              "catboost": 0.29952738667939655,
+              "rf": 0.4065212286342976
+            },
+            {
+              "lgbm": 0.055364489441130114,
+              "xgb": 0.2224778270637854,
+              "catboost": 0.3320756464533946,
+              "rf": 0.3900820370416899
+            },
+            {
+              "lgbm": 0.07705286833712569,
+              "xgb": 0.307674468062483,
+              "catboost": 0.23569038814368645,
+              "rf": 0.37958227545670487
+            },
+            {
+              "lgbm": 0.0016806618018118127,
+              "xgb": 0.31657524671125137,
+              "catboost": 0.2940458606403838,
+              "rf": 0.3876982308465531
+            }
+          ],
+          "internal_cv_r2": 0.6150601199673373
+        },
+        "2": {
+          "weights_pooled": {
+            "lgbm": 5.2244415910759585e-18,
+            "xgb": 3.169225270773302e-18,
+            "catboost": 0.5091084576531097,
+            "rf": 0.4908915423468903
+          },
+          "weights_lofo": [
+            {
+              "lgbm": 1.855559750183961e-17,
+              "xgb": 7.650058506172156e-18,
+              "catboost": 0.526965737422714,
+              "rf": 0.473034262577286
+            },
+            {
+              "lgbm": 0.16993116352349566,
+              "xgb": 6.953072073267062e-18,
+              "catboost": 0.2728510408510901,
+              "rf": 0.5572177956254143
+            },
+            {
+              "lgbm": 1.9365956264993295e-17,
+              "xgb": 0.0,
+              "catboost": 0.5675728693740175,
+              "rf": 0.4324271306259825
+            },
+            {
+              "lgbm": 0.03990088459408533,
+              "xgb": 6.136310814440233e-19,
+              "catboost": 0.3337697412238661,
+              "rf": 0.6263293741820486
+            },
+            {
+              "lgbm": 0.019285694550898326,
+              "xgb": 0.0,
+              "catboost": 0.5163386271928978,
+              "rf": 0.46437567825620396
+            },
+            {
+              "lgbm": 0.006414261191554174,
+              "xgb": 0.0,
+              "catboost": 0.5961223143944983,
+              "rf": 0.39746342441394766
+            },
+            {
+              "lgbm": 3.226198396257473e-18,
+              "xgb": 0.0,
+              "catboost": 0.5930241950561828,
+              "rf": 0.40697580494381724
+            },
+            {
+              "lgbm": 0.05038762432640851,
+              "xgb": 9.022132616998501e-19,
+              "catboost": 0.5468413195197539,
+              "rf": 0.40277105615383757
+            },
+            {
+              "lgbm": 2.3194896470017922e-18,
+              "xgb": 0.0,
+              "catboost": 0.5219106845295143,
+              "rf": 0.47808931547048567
+            },
+            {
+              "lgbm": 0.0,
+              "xgb": 0.0,
+              "catboost": 0.4927316341749919,
+              "rf": 0.5072683658250081
+            }
+          ],
+          "internal_cv_r2": 0.6239085504864814
+        },
+        "3": {
+          "weights_pooled": {
+            "lgbm": 2.0944536696125923e-17,
+            "xgb": 1.4005642792218695e-17,
+            "catboost": 0.3793677104928221,
+            "rf": 0.620632289507178
+          },
+          "weights_lofo": [
+            {
+              "lgbm": 0.0,
+              "xgb": 0.0,
+              "catboost": 0.2222977665138275,
+              "rf": 0.7777022334861725
+            },
+            {
+              "lgbm": 8.934511996684296e-18,
+              "xgb": 0.0,
+              "catboost": 0.39486310722946244,
+              "rf": 0.6051368927705376
+            },
+            {
+              "lgbm": 2.045045368553712e-17,
+              "xgb": 0.0,
+              "catboost": 0.41003853888467623,
+              "rf": 0.5899614611153239
+            },
+            {
+              "lgbm": 0.05593110926422638,
+              "xgb": 0.013209612357863101,
+              "catboost": 0.24523325305864696,
+              "rf": 0.6856260253192635
+            },
+            {
+              "lgbm": 0.0,
+              "xgb": 0.0,
+              "catboost": 0.4660116380120289,
+              "rf": 0.5339883619879711
+            },
+            {
+              "lgbm": 5.1147242793755e-19,
+              "xgb": 0.0,
+              "catboost": 0.3859496687666032,
+              "rf": 0.6140503312333968
+            },
+            {
+              "lgbm": 6.5023957356113145e-18,
+              "xgb": 0.0,
+              "catboost": 0.38859876211886857,
+              "rf": 0.6114012378811314
+            },
+            {
+              "lgbm": 1.2535436118346743e-17,
+              "xgb": 4.7256140050196504e-18,
+              "catboost": 0.3870342939344944,
+              "rf": 0.6129657060655056
+            },
+            {
+              "lgbm": 0.0,
+              "xgb": 7.387250460294863e-18,
+              "catboost": 0.4236293681965447,
+              "rf": 0.5763706318034554
+            },
+            {
+              "lgbm": 0.0,
+              "xgb": 2.0896369099219643e-18,
+              "catboost": 0.42033950593041225,
+              "rf": 0.5796604940695878
+            }
+          ],
+          "internal_cv_r2": 0.618348677541539
+        },
+        "4": {
+          "weights_pooled": {
+            "lgbm": 0.07115719421589302,
+            "xgb": 0.2852013214789656,
+            "catboost": 1.7607108209543503e-17,
+            "rf": 0.6436414843051415
+          },
+          "weights_lofo": [
+            {
+              "lgbm": 0.10690973707464269,
+              "xgb": 0.22581238848088958,
+              "catboost": 0.0,
+              "rf": 0.6672778744444677
+            },
+            {
+              "lgbm": 0.07417472859742658,
+              "xgb": 0.2960368992074415,
+              "catboost": 2.5443242132159185e-17,
+              "rf": 0.629788372195132
+            },
+            {
+              "lgbm": 0.048609655432981284,
+              "xgb": 0.33737081763457494,
+              "catboost": 0.0,
+              "rf": 0.6140195269324438
+            },
+            {
+              "lgbm": 0.017949785414848485,
+              "xgb": 0.24845534040577924,
+              "catboost": 8.037042176774385e-18,
+              "rf": 0.7335948741793723
+            },
+            {
+              "lgbm": 0.08075344656819335,
+              "xgb": 0.2819313969508858,
+              "catboost": 3.001627993738865e-17,
+              "rf": 0.6373151564809209
+            },
+            {
+              "lgbm": 2.5475328281193116e-17,
+              "xgb": 0.27166001674367835,
+              "catboost": 0.0,
+              "rf": 0.7283399832563218
+            },
+            {
+              "lgbm": 0.10348616988586513,
+              "xgb": 0.24573314124106685,
+              "catboost": 0.0,
+              "rf": 0.6507806888730681
+            },
+            {
+              "lgbm": 0.15887603864426442,
+              "xgb": 0.25528555981590867,
+              "catboost": 3.4992095847574026e-18,
+              "rf": 0.585838401539827
+            },
+            {
+              "lgbm": 0.09645530781822241,
+              "xgb": 0.32878370359298975,
+              "catboost": 2.702921676335454e-17,
+              "rf": 0.5747609885887879
+            },
+            {
+              "lgbm": 0.04241066381434001,
+              "xgb": 0.34005362269010353,
+              "catboost": 0.0,
+              "rf": 0.6175357134955565
+            }
+          ],
+          "internal_cv_r2": 0.6308291941316646
+        }
+      },
+      "gpboost": {
+        "available": true,
+        "cov_pars_by_outer_fold": {},
+        "params": {
+          "objective": "regression_l2",
+          "learning_rate": 0.05,
+          "num_leaves": 63,
+          "min_data_in_leaf": 60,
+          "lambda_l2": 3.0,
+          "verbose": -1,
+          "seed": 42
+        },
+        "notes": [
+          "escape fired via AQNET2_FORCE_ESCAPE=1: prior full-run attempt's first lambda fit exceeded 3.4 h wall (job 11699055), projecting ~190 h for the full A protocol against the 10.0 h registered budget"
+        ]
+      },
+      "canonical_aqs_metrics": {
+        "wr2": 0.334276891701626,
+        "wrmse": 5.15839771148704,
+        "n": 62223
+      },
+      "nbr_overrides": {
+        "outer": "/storage/scratch1/8/ntan68/aqnet/repo/research/aqnet2/artifacts/v2/nbr_overrides_outer.npz",
+        "loso": {
+          "0": "/storage/scratch1/8/ntan68/aqnet/repo/research/aqnet2/artifacts/v2/nbr_overrides_loso_f0.npz",
+          "1": "/storage/scratch1/8/ntan68/aqnet/repo/research/aqnet2/artifacts/v2/nbr_overrides_loso_f1.npz",
+          "2": "/storage/scratch1/8/ntan68/aqnet/repo/research/aqnet2/artifacts/v2/nbr_overrides_loso_f2.npz",
+          "3": "/storage/scratch1/8/ntan68/aqnet/repo/research/aqnet2/artifacts/v2/nbr_overrides_loso_f3.npz",
+          "4": "/storage/scratch1/8/ntan68/aqnet/repo/research/aqnet2/artifacts/v2/nbr_overrides_loso_f4.npz"
+        }
+      },
+      "timings_seconds": {
+        "candidate_a": null,
+        "candidate_b": 19570.7,
+        "stage": 19603.8
+      },
+      "outer_folds_run": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "quick": false,
+      "n_rows": 498617,
+      "n_features": 63,
+      "seed": 42
+    },
+    "site_climatology": "per-site pre-cutoff mean; finite only on rows >= 2025-01-01 (paired test runs there)",
+    "kriging_pa_daily": "per-day OK on calibrated PA (fold-aware column), 9121 fold-days kriged, 0 failed"
+  },
+  "baselines": {
+    "t0_alone": {
+      "metrics": {
+        "r2": 0.14671190361300623,
+        "rmse": 5.840040387747796,
+        "mae": 3.5137679758980265,
+        "bias": -0.23549232323050076,
+        "n": 62223
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": 0.1779595831908184,
+        "ci": [
+          0.0932937114677509,
+          0.239736938506452
+        ],
+        "lb95": 0.0932937114677509,
+        "n_clusters": 49,
+        "n_rows": 62223,
+        "n_exceed_valid": 62223,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": 0.1779595831908184,
+            "lb95": 0.0932937114677509,
+            "ci": [
+              0.0932937114677509,
+              0.239736938506452
+            ],
+            "margin": 0.005,
+            "point_ref": 0.14671190361300324,
+            "point_new": 0.32467148680382163,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "spatial_r2": {
+            "delta": 0.9553972930921713,
+            "lb95": 0.07745827861351874,
+            "ci": [
+              0.07745827861351874,
+              1.9640782980269584
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": -1.0567487649619323,
+            "point_new": -0.10135147186976101,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "exceedance_f1": {
+            "delta": 3.370407819346111e-05,
+            "lb95": -0.020259492149830097,
+            "ci": [
+              -0.020259492149830097,
+              0.02189803721658133
+            ],
+            "margin": 0.02,
+            "point_ref": 0.011594202898550725,
+            "point_new": 0.011627906976744186,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: exceedance_f1"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "t1": {
+      "metrics": {
+        "r2": 0.3342768917016261,
+        "rmse": 5.158397711487042,
+        "mae": 3.0692004722481006,
+        "bias": 0.6117869795682612,
+        "n": 62223
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": -0.009605404897801706,
+        "ci": [
+          -0.0176881766143557,
+          -0.0019142885125518943
+        ],
+        "lb95": -0.0176881766143557,
+        "n_clusters": 49,
+        "n_rows": 62223,
+        "n_exceed_valid": 62223,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": -0.009605404897801706,
+            "lb95": -0.0176881766143557,
+            "ci": [
+              -0.0176881766143557,
+              -0.0019142885125518943
+            ],
+            "margin": 0.005,
+            "point_ref": 0.33427689170162334,
+            "point_new": 0.32467148680382163,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "spatial_r2": {
+            "delta": 0.024544064583186476,
+            "lb95": -0.01871260479485899,
+            "ci": [
+              -0.01871260479485899,
+              0.07376160602692768
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": -0.1258955364529475,
+            "point_new": -0.10135147186976101,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "exceedance_f1": {
+            "delta": -0.005663159305676565,
+            "lb95": -0.018208624164913607,
+            "ci": [
+              -0.018208624164913607,
+              0.0001937262234982943
+            ],
+            "margin": 0.02,
+            "point_ref": 0.01729106628242075,
+            "point_new": 0.011627906976744186,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: pooled_r2, spatial_r2"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "t1_candidate_baseline_gpboost": {
+      "metrics": {
+        "r2": null,
+        "rmse": null,
+        "mae": null,
+        "bias": null,
+        "n": 0
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": null,
+        "ci": [
+          null,
+          null
+        ],
+        "lb95": null,
+        "n_clusters": 0,
+        "n_rows": 0,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {},
+        "skipped": [
+          "pooled_r2",
+          "spatial_r2",
+          "exceedance_f1"
+        ],
+        "reasons": [
+          "only 0 jointly-finite rows"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "t1_candidate_catboost": {
+      "metrics": {
+        "r2": 0.3523748322779514,
+        "rmse": 5.0877980657102615,
+        "mae": 3.044467770869517,
+        "bias": 0.5811987728500783,
+        "n": 62223
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": -0.027703345474127117,
+        "ci": [
+          -0.04309584675532351,
+          -0.015560008271740899
+        ],
+        "lb95": -0.04309584675532351,
+        "n_clusters": 49,
+        "n_rows": 62223,
+        "n_exceed_valid": 62223,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": -0.027703345474127117,
+            "lb95": -0.04309584675532351,
+            "ci": [
+              -0.04309584675532351,
+              -0.015560008271740899
+            ],
+            "margin": 0.005,
+            "point_ref": 0.35237483227794875,
+            "point_new": 0.32467148680382163,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "spatial_r2": {
+            "delta": 0.008036827116832734,
+            "lb95": -0.12132950949377964,
+            "ci": [
+              -0.12132950949377964,
+              0.13267710906087907
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": -0.10938829898659375,
+            "point_new": -0.10135147186976101,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "exceedance_f1": {
+            "delta": -0.0060712080675036015,
+            "lb95": -0.018808085930296883,
+            "ci": [
+              -0.018808085930296883,
+              0.0
+            ],
+            "margin": 0.02,
+            "point_ref": 0.017699115044247787,
+            "point_new": 0.011627906976744186,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: pooled_r2, spatial_r2"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "t1_candidate_lgbm": {
+      "metrics": {
+        "r2": 0.3715222572924075,
+        "rmse": 5.012021876629884,
+        "mae": 2.9849302338577104,
+        "bias": 0.5731294260831767,
+        "n": 62223
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": -0.04685077048858355,
+        "ci": [
+          -0.08944144724529496,
+          -0.02110376249628236
+        ],
+        "lb95": -0.08944144724529496,
+        "n_clusters": 49,
+        "n_rows": 62223,
+        "n_exceed_valid": 62223,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": -0.04685077048858355,
+            "lb95": -0.08944144724529496,
+            "ci": [
+              -0.08944144724529496,
+              -0.02110376249628236
+            ],
+            "margin": 0.005,
+            "point_ref": 0.3715222572924052,
+            "point_new": 0.32467148680382163,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "spatial_r2": {
+            "delta": -0.05897155632862261,
+            "lb95": -0.24167168645190049,
+            "ci": [
+              -0.24167168645190049,
+              0.11831782363086037
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": -0.0423799155411384,
+            "point_new": -0.10135147186976101,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "exceedance_f1": {
+            "delta": 0.005693188875853978,
+            "lb95": -0.0003354894765017466,
+            "ci": [
+              -0.0003354894765017466,
+              0.018132397909989988
+            ],
+            "margin": 0.02,
+            "point_ref": 0.005934718100890208,
+            "point_new": 0.011627906976744186,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: pooled_r2, spatial_r2"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "t1_candidate_rf": {
+      "metrics": {
+        "r2": 0.34703067410648203,
+        "rmse": 5.1087470163635125,
+        "mae": 3.061823392441621,
+        "bias": 0.607377173923279,
+        "n": 62223
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": -0.02235918730265818,
+        "ci": [
+          -0.060086657134287715,
+          0.0002826257320804708
+        ],
+        "lb95": -0.060086657134287715,
+        "n_clusters": 49,
+        "n_rows": 62223,
+        "n_exceed_valid": 62223,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": -0.02235918730265818,
+            "lb95": -0.060086657134287715,
+            "ci": [
+              -0.060086657134287715,
+              0.0002826257320804708
+            ],
+            "margin": 0.005,
+            "point_ref": 0.3470306741064798,
+            "point_new": 0.32467148680382163,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "spatial_r2": {
+            "delta": -0.04239159113411528,
+            "lb95": -0.19003417470112027,
+            "ci": [
+              -0.19003417470112027,
+              0.08638210681594044
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": -0.05895988073564573,
+            "point_new": -0.10135147186976101,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "exceedance_f1": {
+            "delta": -0.00020641254988303277,
+            "lb95": -0.0009664984537440557,
+            "ci": [
+              -0.0009664984537440557,
+              0.0
+            ],
+            "margin": 0.02,
+            "point_ref": 0.011834319526627219,
+            "point_new": 0.011627906976744186,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: pooled_r2, spatial_r2"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "t1_candidate_xgb": {
+      "metrics": {
+        "r2": 0.3680560532947468,
+        "rmse": 5.025824117573582,
+        "mae": 2.997907036686484,
+        "bias": 0.5542160686515419,
+        "n": 62223
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": -0.04338456649092337,
+        "ci": [
+          -0.08228440851103863,
+          -0.019199790237310714
+        ],
+        "lb95": -0.08228440851103863,
+        "n_clusters": 49,
+        "n_rows": 62223,
+        "n_exceed_valid": 62223,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": -0.04338456649092337,
+            "lb95": -0.08228440851103863,
+            "ci": [
+              -0.08228440851103863,
+              -0.019199790237310714
+            ],
+            "margin": 0.005,
+            "point_ref": 0.368056053294745,
+            "point_new": 0.32467148680382163,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "spatial_r2": {
+            "delta": -0.08518901836191439,
+            "lb95": -0.24443151031503565,
+            "ci": [
+              -0.24443151031503565,
+              0.07681332299984134
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": -0.01616245350784662,
+            "point_new": -0.10135147186976101,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "exceedance_f1": {
+            "delta": 0.005693188875853978,
+            "lb95": -0.0003354894765017466,
+            "ci": [
+              -0.0003354894765017466,
+              0.018132397909989988
+            ],
+            "margin": 0.02,
+            "point_ref": 0.005934718100890208,
+            "point_new": 0.011627906976744186,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: pooled_r2, spatial_r2"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "persistence_frm_lag1": {
+      "metrics": {
+        "r2": 0.18351563165475127,
+        "rmse": 5.638583951697423,
+        "mae": 3.196099308341174,
+        "bias": -0.001543439145578498,
+        "n": 60579
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": 0.14775349390675407,
+        "ci": [
+          0.028391393881784754,
+          0.25782673875923545
+        ],
+        "lb95": 0.028391393881784754,
+        "n_clusters": 47,
+        "n_rows": 60579,
+        "n_exceed_valid": 60579,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": 0.14775349390675407,
+            "lb95": 0.028391393881784754,
+            "ci": [
+              0.028391393881784754,
+              0.25782673875923545
+            ],
+            "margin": 0.005,
+            "point_ref": 0.1835156316547496,
+            "point_new": 0.3312691255615037,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "spatial_r2": {
+            "delta": -1.0980602829027957,
+            "lb95": -1.511301489339607,
+            "ci": [
+              -1.511301489339607,
+              -0.8074390346379098
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": 0.9979196784622041,
+            "point_new": -0.1001406044405917,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "exceedance_f1": {
+            "delta": -0.35591171881341715,
+            "lb95": -0.4383341294582998,
+            "ci": [
+              -0.4383341294582998,
+              -0.2387199084954234
+            ],
+            "margin": 0.02,
+            "point_ref": 0.3677811550151976,
+            "point_new": 0.011869436201780416,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: spatial_r2, exceedance_f1"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "site_climatology": {
+      "metrics": {
+        "r2": 0.04808643524259848,
+        "rmse": 7.781332901631288,
+        "mae": 3.9754362113073265,
+        "bias": -0.06858923089080039,
+        "n": 13463
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": 0.1051631258467699,
+        "ci": [
+          0.04932091276314703,
+          0.261239559745819
+        ],
+        "lb95": 0.04932091276314703,
+        "n_clusters": 41,
+        "n_rows": 13463,
+        "n_exceed_valid": 13463,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": 0.1051631258467699,
+            "lb95": 0.04932091276314703,
+            "ci": [
+              0.04932091276314703,
+              0.261239559745819
+            ],
+            "margin": 0.005,
+            "point_ref": 0.04808643524259848,
+            "point_new": 0.15324956108936838,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "spatial_r2": {
+            "delta": -0.662113982969318,
+            "lb95": -0.8827867984686197,
+            "ci": [
+              -0.8827867984686197,
+              -0.4459230481773517
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": 0.4941788504789396,
+            "point_new": -0.1679351324903784,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "exceedance_f1": {
+            "delta": 0.0,
+            "lb95": 0.0,
+            "ci": [
+              0.0,
+              0.0
+            ],
+            "margin": 0.02,
+            "point_ref": 0.0,
+            "point_new": 0.0,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: spatial_r2"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "ctm_raw_geoscf_pm25": {
+      "metrics": {
+        "r2": -1.8542249606715067,
+        "rmse": 10.679783724623878,
+        "mae": 7.7055916605574115,
+        "bias": 4.250584133095753,
+        "n": 45055
+      },
+      "admission_vs_composite": {
+        "decision": "pass",
+        "delta": 2.1943532284048355,
+        "ci": [
+          1.5744121248865166,
+          3.045603225510031
+        ],
+        "lb95": 1.5744121248865166,
+        "n_clusters": 49,
+        "n_rows": 45055,
+        "n_exceed_valid": 45055,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": 2.1943532284048355,
+            "lb95": 1.5744121248865166,
+            "ci": [
+              1.5744121248865166,
+              3.045603225510031
+            ],
+            "margin": 0.005,
+            "point_ref": -1.8542249606715124,
+            "point_new": 0.34012826773332294,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "spatial_r2": {
+            "delta": 5.3449649410348865,
+            "lb95": 3.079495583118513,
+            "ci": [
+              3.079495583118513,
+              10.495507330555363
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": -5.422488150143324,
+            "point_new": -0.07752320910843769,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "exceedance_f1": {
+            "delta": -0.008968609865470852,
+            "lb95": -0.016520999050705424,
+            "ci": [
+              -0.016520999050705424,
+              -0.002967359050445104
+            ],
+            "margin": 0.02,
+            "point_ref": 0.008968609865470852,
+            "point_new": 0.0,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": []
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "ctm_debiased_geoscf_pm25": {
+      "metrics": {
+        "r2": -1.496225745666989,
+        "rmse": 9.987580369570749,
+        "mae": 7.243659957688791,
+        "bias": 0.1511016152226311,
+        "n": 45055
+      },
+      "admission_vs_composite": {
+        "decision": "pass",
+        "delta": 1.8363540134003178,
+        "ci": [
+          1.419285593765661,
+          2.420379914283892
+        ],
+        "lb95": 1.419285593765661,
+        "n_clusters": 49,
+        "n_rows": 45055,
+        "n_exceed_valid": 45055,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": 1.8363540134003178,
+            "lb95": 1.419285593765661,
+            "ci": [
+              1.419285593765661,
+              2.420379914283892
+            ],
+            "margin": 0.005,
+            "point_ref": -1.4962257456669947,
+            "point_new": 0.34012826773332294,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "spatial_r2": {
+            "delta": 2.3729574790134444,
+            "lb95": 1.1859224919867246,
+            "ci": [
+              1.1859224919867246,
+              4.590991490362932
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": -2.4504806881218824,
+            "point_new": -0.07752320910843769,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "exceedance_f1": {
+            "delta": -0.0022346368715083797,
+            "lb95": -0.006834102591408379,
+            "ci": [
+              -0.006834102591408379,
+              0.0
+            ],
+            "margin": 0.02,
+            "point_ref": 0.0022346368715083797,
+            "point_new": 0.0,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": []
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "ctm_raw_cams_pm25": {
+      "metrics": {
+        "r2": 0.14780061378877174,
+        "rmse": 6.193109116050951,
+        "mae": 3.603664074436682,
+        "bias": -0.5315691150074912,
+        "n": 44942
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": 0.1675496284034228,
+        "ci": [
+          0.07948599345686211,
+          0.2615075371605374
+        ],
+        "lb95": 0.07948599345686211,
+        "n_clusters": 47,
+        "n_rows": 44942,
+        "n_exceed_valid": 44942,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": 0.1675496284034228,
+            "lb95": 0.07948599345686211,
+            "ci": [
+              0.07948599345686211,
+              0.2615075371605374
+            ],
+            "margin": 0.005,
+            "point_ref": 0.14780061378877207,
+            "point_new": 0.3153502421921949,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "spatial_r2": {
+            "delta": -0.38775432142866884,
+            "lb95": -0.8584730583582089,
+            "ci": [
+              -0.8584730583582089,
+              0.020569322348056317
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": 0.30515209668646814,
+            "point_new": -0.08260222474220069,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "exceedance_f1": {
+            "delta": 0.0005403579871664978,
+            "lb95": -0.017982266143224585,
+            "ci": [
+              -0.017982266143224585,
+              0.02443828837820076
+            ],
+            "margin": 0.02,
+            "point_ref": 0.0121580547112462,
+            "point_new": 0.012698412698412698,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: spatial_r2"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "ctm_debiased_cams_pm25": {
+      "metrics": {
+        "r2": 0.15148809421437037,
+        "rmse": 6.179695749071538,
+        "mae": 3.6326317949640745,
+        "bias": 0.05088831719171781,
+        "n": 44942
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": 0.16386214797782528,
+        "ci": [
+          0.07615075570461327,
+          0.2591835199458261
+        ],
+        "lb95": 0.07615075570461327,
+        "n_clusters": 47,
+        "n_rows": 44942,
+        "n_exceed_valid": 44942,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": 0.16386214797782528,
+            "lb95": 0.07615075570461327,
+            "ci": [
+              0.07615075570461327,
+              0.2591835199458261
+            ],
+            "margin": 0.005,
+            "point_ref": 0.1514880942143696,
+            "point_new": 0.3153502421921949,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "spatial_r2": {
+            "delta": -0.35787473499932687,
+            "lb95": -0.8075596797912509,
+            "ci": [
+              -0.8075596797912509,
+              0.08386625256865522
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": 0.2752725102571262,
+            "point_new": -0.08260222474220069,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "exceedance_f1": {
+            "delta": 0.0005772005772005772,
+            "lb95": -0.01794125964529552,
+            "ci": [
+              -0.01794125964529552,
+              0.024438846972389718
+            ],
+            "margin": 0.02,
+            "point_ref": 0.012121212121212121,
+            "point_new": 0.012698412698412698,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: spatial_r2"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "ctm_raw_merra2_pm25_proxy": {
+      "metrics": {
+        "r2": -0.929131355822465,
+        "rmse": 8.781099677318517,
+        "mae": 5.89922364542815,
+        "bias": 4.253017116740161,
+        "n": 62223
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": 1.253802842626292,
+        "ci": [
+          0.9210159493736862,
+          1.714107683637655
+        ],
+        "lb95": 0.9210159493736862,
+        "n_clusters": 49,
+        "n_rows": 62223,
+        "n_exceed_valid": 62223,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": 1.253802842626292,
+            "lb95": 0.9210159493736862,
+            "ci": [
+              0.9210159493736862,
+              1.714107683637655
+            ],
+            "margin": 0.005,
+            "point_ref": -0.9291313558224703,
+            "point_new": 0.32467148680382163,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "spatial_r2": {
+            "delta": 3.9040074228406247,
+            "lb95": 2.1789449573039605,
+            "ci": [
+              2.1789449573039605,
+              7.778909750606685
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": -4.005358894710386,
+            "point_new": -0.10135147186976101,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "exceedance_f1": {
+            "delta": -0.13190273733965183,
+            "lb95": -0.18464931765048342,
+            "ci": [
+              -0.18464931765048342,
+              -0.07174213510751513
+            ],
+            "margin": 0.02,
+            "point_ref": 0.143530644316396,
+            "point_new": 0.011627906976744186,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: exceedance_f1"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "ctm_debiased_merra2_pm25_proxy": {
+      "metrics": {
+        "r2": -0.49117882131868806,
+        "rmse": 7.720276778596783,
+        "mae": 4.737467994938652,
+        "bias": 0.0991514807966447,
+        "n": 62223
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": 0.8158503081225152,
+        "ci": [
+          0.6199928918153635,
+          1.0765763235471908
+        ],
+        "lb95": 0.6199928918153635,
+        "n_clusters": 49,
+        "n_rows": 62223,
+        "n_exceed_valid": 62223,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": 0.8158503081225152,
+            "lb95": 0.6199928918153635,
+            "ci": [
+              0.6199928918153635,
+              1.0765763235471908
+            ],
+            "margin": 0.005,
+            "point_ref": -0.4911788213186936,
+            "point_new": 0.32467148680382163,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": true
+          },
+          "spatial_r2": {
+            "delta": 0.6995668301301814,
+            "lb95": -0.24495269679437295,
+            "ci": [
+              -0.24495269679437295,
+              1.9149386042759076
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": -0.8009183019999424,
+            "point_new": -0.10135147186976101,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "exceedance_f1": {
+            "delta": -0.1572672372878582,
+            "lb95": -0.20967645340750155,
+            "ci": [
+              -0.20967645340750155,
+              -0.09499817854835743
+            ],
+            "margin": 0.02,
+            "point_ref": 0.1688951442646024,
+            "point_new": 0.011627906976744186,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: spatial_r2, exceedance_f1"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    },
+    "kriging_pa_daily": {
+      "metrics": {
+        "r2": 0.29432035748461116,
+        "rmse": 5.3109449708557275,
+        "mae": 3.2570041944001216,
+        "bias": 0.7188865223871466,
+        "n": 62223
+      },
+      "admission_vs_composite": {
+        "decision": "fail",
+        "delta": 0.030351129319213466,
+        "ci": [
+          -0.004688660011162209,
+          0.06113880131693844
+        ],
+        "lb95": -0.004688660011162209,
+        "n_clusters": 49,
+        "n_rows": 62223,
+        "n_exceed_valid": 62223,
+        "n_boot": 1000,
+        "seed": 42,
+        "margins": {
+          "pooled_r2": 0.005,
+          "spatial_r2": 0.010305996659858097,
+          "exceedance_f1": 0.02
+        },
+        "metrics": {
+          "pooled_r2": {
+            "delta": 0.030351129319213466,
+            "lb95": -0.004688660011162209,
+            "ci": [
+              -0.004688660011162209,
+              0.06113880131693844
+            ],
+            "margin": 0.005,
+            "point_ref": 0.29432035748460816,
+            "point_new": 0.32467148680382163,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          },
+          "spatial_r2": {
+            "delta": -0.0666049909615487,
+            "lb95": -0.281042199663153,
+            "ci": [
+              -0.281042199663153,
+              0.17534677207849955
+            ],
+            "margin": 0.010305996659858097,
+            "point_ref": -0.03474648090821231,
+            "point_new": -0.10135147186976101,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": false,
+            "superior": false
+          },
+          "exceedance_f1": {
+            "delta": 0.011627906976744186,
+            "lb95": 0.0,
+            "ci": [
+              0.0,
+              0.030314596345130687
+            ],
+            "margin": 0.02,
+            "point_ref": 0.0,
+            "point_new": 0.011627906976744186,
+            "n_boot_defined": 1000,
+            "defined": true,
+            "non_inferior": true,
+            "superior": false
+          }
+        },
+        "skipped": [],
+        "reasons": [
+          "non-inferiority failed on: spatial_r2"
+        ]
+      },
+      "direction": "pass means the composite beats this baseline within pre-registered margins"
+    }
+  }
+}

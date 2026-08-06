@@ -1,0 +1,222 @@
+{
+  "t2": {
+    "1": {
+      "1": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 42
+        }
+      },
+      "2": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 147
+        }
+      },
+      "__global__": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": 0.0,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_selection_alpha_zero",
+          "delta": null,
+          "n_clusters": 168
+        }
+      }
+    },
+    "2": {
+      "0": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 15
+        }
+      },
+      "__global__": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": 0.0,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_selection_alpha_zero",
+          "delta": null,
+          "n_clusters": 15
+        }
+      }
+    }
+  },
+  "t3": {
+    "0": {
+      "0": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 15
+        }
+      },
+      "__global__": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": 0.75,
+          "ci": [
+            -0.09547997608213692,
+            0.05900693980771591
+          ],
+          "decision": "fail",
+          "delta": -0.010059859370912472,
+          "lb95": -0.09547997608213692,
+          "margins": {
+            "exceedance_f1": 0.02,
+            "pooled_r2": 0.005,
+            "spatial_r2": 0.010305996659858097
+          },
+          "metrics": {
+            "exceedance_f1": {
+              "ci": [
+                null,
+                null
+              ],
+              "defined": false,
+              "delta": null,
+              "lb95": null,
+              "margin": 0.02,
+              "n_boot_defined": 0,
+              "non_inferior": null,
+              "point_new": null,
+              "point_ref": null,
+              "superior": null
+            },
+            "pooled_r2": {
+              "ci": [
+                -0.09547997608213692,
+                0.05900693980771591
+              ],
+              "defined": true,
+              "delta": -0.010059859370912472,
+              "lb95": -0.09547997608213692,
+              "margin": 0.005,
+              "n_boot_defined": 1000,
+              "non_inferior": false,
+              "point_new": 0.5883110863387523,
+              "point_ref": 0.5983709457096648,
+              "superior": false
+            },
+            "spatial_r2": {
+              "ci": [
+                -1.0364622129490841,
+                0.14407271765893095
+              ],
+              "defined": true,
+              "delta": -0.4058086090618487,
+              "lb95": -1.0364622129490841,
+              "margin": 0.010305996659858097,
+              "n_boot_defined": 1000,
+              "non_inferior": false,
+              "point_new": -0.04275570927168948,
+              "point_ref": 0.3630528997901592,
+              "superior": false
+            }
+          },
+          "n_boot": 1000,
+          "n_clusters": 15,
+          "n_exceed_valid": 5006,
+          "n_rows": 5650,
+          "reasons": [
+            "non-inferiority failed on: pooled_r2, spatial_r2"
+          ],
+          "seed": 42,
+          "skipped": [
+            "exceedance_f1"
+          ]
+        }
+      }
+    },
+    "1": {
+      "1": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 44
+        }
+      },
+      "__global__": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": 0.0,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_selection_alpha_zero",
+          "delta": null,
+          "n_clusters": 44
+        }
+      }
+    },
+    "2": {
+      "2": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 147
+        }
+      },
+      "__global__": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": 0.0,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_selection_alpha_zero",
+          "delta": null,
+          "n_clusters": 147
+        }
+      }
+    }
+  }
+}

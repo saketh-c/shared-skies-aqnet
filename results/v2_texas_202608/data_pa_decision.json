@@ -1,0 +1,20 @@
+{
+  "stage": "data-pa",
+  "decision": "SKIP_REFETCH",
+  "policy": "cf1_reconstruction_fallback",
+  "design_ref": "DESIGN section 4 sanctioned fallback; section 12.1",
+  "build_notes_ref": "BUILD_NOTES scope decision 1",
+  "rationale": "Committed archive is ATM-only (single pm25 column, audit 06 section 4). Below the reconstruction threshold the PA firmware's ATM and cf_1 outputs coincide, so pa_cf1 := ATM there; above it channel_reconstructed=1, cal_var is inflated by channel_recon_var_factor in calibrate.py, and exceed.py excludes reconstructed rows from exceedance labels. A full cf_1 refetch of the multi-year archive is deferred until the API cost arithmetic below is filled in and approved.",
+  "cf1_recon_threshold_ugm3": 20.0,
+  "channel_recon_var_factor": 4.0,
+  "exceedance_label_policy": "channel_reconstructed rows excluded (enforced in exceed.py)",
+  "api_cost": {
+    "n_sensors": null,
+    "n_sensor_days": null,
+    "points_per_request": null,
+    "requests_needed": null,
+    "est_cost_usd": null,
+    "note": "fill from the PurpleAir API price sheet before any future refetch decision; ~412k committed sensor-days is the lower bound on volume"
+  },
+  "created": "2026-08-04"
+}
