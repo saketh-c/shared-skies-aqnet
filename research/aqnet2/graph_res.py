@@ -1234,7 +1234,13 @@ def _unit_map_from_rows(ctx, row_values, name):
     the epistemic-ensemble semantics)."""
     row_unit = ctx["row_unit"]
     vals = np.asarray(row_values, dtype=np.int64)
-    valid = row_unit >= 0
+    # -1 rows are "never scored" (vault units, vault-period rows, the
+    # context's own outer-fold rows) — excluded from the consistency check
+    # rather than treated as a competing fold value: in the full window
+    # every unit legitimately carries {its fold, -1} across rows. Quick-mode
+    # smoke windows predate the vault period, which is why this only bites
+    # in production.
+    valid = (row_unit >= 0) & (vals >= 0)
     df = pd.DataFrame({"u": row_unit[valid], "f": vals[valid]})
     bad = int((df.groupby("u")["f"].nunique() > 1).sum())
     assert bad == 0, (f"{name}: {bad} units have inconsistent fold "
