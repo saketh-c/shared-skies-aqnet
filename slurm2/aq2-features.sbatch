@@ -5,7 +5,7 @@
 #SBATCH -p cpu-small
 #SBATCH -N 1 -n 1 -c 16
 #SBATCH --mem=128G
-#SBATCH -t 12:00:00
+#SBATCH -t 20:00:00
 #SBATCH -o /storage/home/hcoda1/8/ntan68/scratch/aqnet/logs/%x-%j.out
 set -euo pipefail
 source "$HOME/scratch/aqnet/repo/slurm2/common.sh"

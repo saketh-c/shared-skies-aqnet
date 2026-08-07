@@ -924,36 +924,73 @@ def stage_features(args):
         raise SystemExit("[aqnet2] features: pa_calibrated.parquet not "
                          "found — run the calibrate stage first.")
 
-    raw_folds = _read_json(artifact("folds2.json"))  # Phase-1 (or prior full)
-    frame = frame2.build_frame_truth(calibrated, ext, quick=args.quick,
-                                     folds=raw_folds)
-
-    _say("features: building Phase-2 folds (row-level arrays + content hash)")
-    folds = folds2.build_folds(frame, seed=config2.SEED)
-    folds2.save_folds(folds, artifact("folds2.json"))
-
+    # Timeout-resume: when a prior pass already wrote the frame AND the
+    # Phase-2 folds (n_rows > 0), reload them through the hash-verifying
+    # loader instead of re-deriving ~1 h of frame build. Any drift fails
+    # load_folds loudly and we fall through to the full rebuild.
+    frame, folds = None, None
     dest_frame = artifact("frame_truth.parquet")
-    tmp = dest_frame + ".tmp"
-    frame.to_parquet(tmp, index=False)
-    os.replace(tmp, dest_frame)
-    _say(f"wrote {dest_frame} ({len(frame):,} rows)")
+    prior = _read_json(artifact("folds2.json")) or {}
+    if (os.path.exists(dest_frame) and int(prior.get("n_rows", 0)) > 0
+            and not _force()):
+        try:
+            frame = pd.read_parquet(dest_frame)
+            folds = folds2.load_folds(artifact("folds2.json"), frame)
+            _say(f"features: frame_truth + Phase-2 folds reused (resume, "
+                 f"{len(frame):,} rows, content hash verified)")
+        except Exception as e:  # noqa: BLE001 — loud fallback to rebuild
+            _say(f"features: resume load failed ({e!r}) — full rebuild")
+            frame, folds = None, None
+
+    if frame is None:
+        raw_folds = _read_json(artifact("folds2.json"))  # Phase-1 or prior
+        frame = frame2.build_frame_truth(calibrated, ext, quick=args.quick,
+                                         folds=raw_folds)
+
+        _say("features: building Phase-2 folds (row-level arrays + hash)")
+        folds = folds2.build_folds(frame, seed=config2.SEED)
+        folds2.save_folds(folds, artifact("folds2.json"))
+
+        tmp = dest_frame + ".tmp"
+        frame.to_parquet(tmp, index=False)
+        os.replace(tmp, dest_frame)
+        _say(f"wrote {dest_frame} ({len(frame):,} rows)")
 
     # ── Per-fold neighbor/t0/target overrides (v1 f{fold}__{col} contract) ──
-    ov_outer = frame2.neighbor_overrides(frame, folds, "outer_fold")
-    frame2.save_overrides(ov_outer, artifact("nbr_overrides_outer.npz"))
+    # Timeout-resume: each override npz is skipped when it already exists
+    # (FORCE=1 recomputes). Safe because the frame build is a deterministic
+    # function of the fetch artifacts and load_folds verifies the content
+    # hash downstream — at west7 scale the 8 LOSO recomputes alone exceed a
+    # 12 h wall, so a restarted stage must not redo finished folds.
+    ov_outer_p = artifact("nbr_overrides_outer.npz")
+    if os.path.exists(ov_outer_p) and not _force():
+        _say("features: nbr_overrides_outer.npz exists — reused (resume)")
+        ov_outer = frame2.load_overrides(ov_outer_p, len(frame))
+    else:
+        ov_outer = frame2.neighbor_overrides(frame, folds, "outer_fold")
+        frame2.save_overrides(ov_outer, ov_outer_p)
 
     outer = np.asarray(folds["outer_fold"], dtype=np.int64)
     outer_ids = sorted(int(k) for k in np.unique(outer[outer >= 0]))
     for k in outer_ids:
+        dest_k = artifact(f"nbr_overrides_loso_f{k}.npz")
+        if os.path.exists(dest_k) and not _force():
+            _say(f"features: {os.path.basename(dest_k)} exists — skipped "
+                 "(resume)")
+            continue
         try:
             ov_k = frame2.neighbor_overrides(frame, folds, f"loso:{k}")
         except KeyError as e:
             _skip("features", f"LOSO overrides for outer fold {k}", str(e))
             continue
-        frame2.save_overrides(ov_k, artifact(f"nbr_overrides_loso_f{k}.npz"))
+        frame2.save_overrides(ov_k, dest_k)
 
-    ov_blk = frame2.neighbor_overrides(frame, folds, "spatial_block_fold")
-    frame2.save_overrides(ov_blk, artifact("nbr_overrides_block.npz"))
+    blk_p = artifact("nbr_overrides_block.npz")
+    if os.path.exists(blk_p) and not _force():
+        _say("features: nbr_overrides_block.npz exists — skipped (resume)")
+    else:
+        ov_blk = frame2.neighbor_overrides(frame, folds, "spatial_block_fold")
+        frame2.save_overrides(ov_blk, blk_p)
 
     # ── oof_tier0.npz from the outer overrides' fold-aware t0 columns ──
     n = len(frame)
