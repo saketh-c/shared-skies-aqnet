@@ -1,0 +1,35 @@
+{
+  "base_r2": 0.43708679921543714,
+  "base_reprediction_metrics": {
+    "r2": 0.43708679921543714,
+    "rmse": 5.344137212137828,
+    "mae": 2.9808312037806046,
+    "bias": 0.1642192165425269,
+    "n": 406265
+  },
+  "n_features": 61,
+  "groups": {
+    "portable": 0.26931832036780934,
+    "interpolating": 0.2956302496477372
+  },
+  "groups_note": "delta pooled R2 when the whole set is permuted jointly",
+  "top15_single_features": {
+    "nbr_frm_50km_lag1": 0.2546314735113906,
+    "hms_smoke": 0.11123146661606909,
+    "doy_cos": 0.03137917896421294,
+    "merra2_v10": 0.026664404388190177,
+    "merra2_rh2m": 0.025948911056311807,
+    "nbr_pacal_100km": 0.016676051483767496,
+    "merra2_u10": 0.014919262699458646,
+    "merra2_t2m": 0.013251407710472618,
+    "dist_to_coast": 0.012583973375287716,
+    "doy_sin": 0.012173602477192569,
+    "st_elev": 0.01130679445790217,
+    "st_nei_pm25_20km": 0.008743449477715215,
+    "nbr_frm_50km_lag7": 0.005333502469369145,
+    "nbr_pacal_50km": 0.005050921366356098,
+    "t0_prior": 0.004879517760689289
+  },
+  "singles_note": "delta pooled R2 when the single column is permuted",
+  "seed": 42
+}

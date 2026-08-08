@@ -1,0 +1,346 @@
+{
+  "t2": {
+    "1": {
+      "1": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 42
+        }
+      },
+      "2": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 147
+        }
+      },
+      "__global__": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": 0.5,
+          "ci": [
+            0.003630361331996481,
+            0.016547846494959814
+          ],
+          "decision": "fail",
+          "delta": 0.009915601023609666,
+          "lb95": 0.003630361331996481,
+          "margins": {
+            "exceedance_f1": 0.02,
+            "pooled_r2": 0.005,
+            "spatial_r2": 0.010305996659858097
+          },
+          "metrics": {
+            "exceedance_f1": {
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "defined": true,
+              "delta": 0.0,
+              "lb95": 0.0,
+              "margin": 0.02,
+              "n_boot_defined": 950,
+              "non_inferior": true,
+              "point_new": 0.0,
+              "point_ref": 0.0,
+              "superior": false
+            },
+            "pooled_r2": {
+              "ci": [
+                0.003630361331996481,
+                0.016547846494959814
+              ],
+              "defined": true,
+              "delta": 0.009915601023609666,
+              "lb95": 0.003630361331996481,
+              "margin": 0.005,
+              "n_boot_defined": 1000,
+              "non_inferior": true,
+              "point_new": 0.6549378573061309,
+              "point_ref": 0.6450222562825212,
+              "superior": true
+            },
+            "spatial_r2": {
+              "ci": [
+                -0.023484424813374975,
+                0.037017599732451965
+              ],
+              "defined": true,
+              "delta": 0.011578758533005717,
+              "lb95": -0.023484424813374975,
+              "margin": 0.010305996659858097,
+              "n_boot_defined": 1000,
+              "non_inferior": false,
+              "point_new": 0.48329951535858295,
+              "point_ref": 0.47172075682557724,
+              "superior": false
+            }
+          },
+          "n_boot": 1000,
+          "n_clusters": 168,
+          "n_exceed_valid": 108775,
+          "n_rows": 120722,
+          "reasons": [
+            "non-inferiority failed on: spatial_r2"
+          ],
+          "seed": 42,
+          "skipped": []
+        }
+      }
+    },
+    "2": {
+      "0": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 15
+        }
+      },
+      "__global__": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": 0.25,
+          "ci": [
+            -0.012994560072722004,
+            0.0029310771967596435
+          ],
+          "decision": "fail",
+          "delta": -0.0036506441510300025,
+          "lb95": -0.012994560072722004,
+          "margins": {
+            "exceedance_f1": 0.02,
+            "pooled_r2": 0.005,
+            "spatial_r2": 0.010305996659858097
+          },
+          "metrics": {
+            "exceedance_f1": {
+              "ci": [
+                null,
+                null
+              ],
+              "defined": false,
+              "delta": null,
+              "lb95": null,
+              "margin": 0.02,
+              "n_boot_defined": 0,
+              "non_inferior": null,
+              "point_new": null,
+              "point_ref": null,
+              "superior": null
+            },
+            "pooled_r2": {
+              "ci": [
+                -0.012994560072722004,
+                0.0029310771967596435
+              ],
+              "defined": true,
+              "delta": -0.0036506441510300025,
+              "lb95": -0.012994560072722004,
+              "margin": 0.005,
+              "n_boot_defined": 1000,
+              "non_inferior": false,
+              "point_new": 0.57671097181867,
+              "point_ref": 0.5803616159697,
+              "superior": false
+            },
+            "spatial_r2": {
+              "ci": [
+                -0.24194384898995805,
+                -0.03273231445413416
+              ],
+              "defined": true,
+              "delta": -0.11542519451786415,
+              "lb95": -0.24194384898995805,
+              "margin": 0.010305996659858097,
+              "n_boot_defined": 1000,
+              "non_inferior": false,
+              "point_new": -0.24843277170777234,
+              "point_ref": -0.1330075771899082,
+              "superior": false
+            }
+          },
+          "n_boot": 1000,
+          "n_clusters": 15,
+          "n_exceed_valid": 5004,
+          "n_rows": 5648,
+          "reasons": [
+            "non-inferiority failed on: pooled_r2, spatial_r2"
+          ],
+          "seed": 42,
+          "skipped": [
+            "exceedance_f1"
+          ]
+        }
+      }
+    }
+  },
+  "t3": {
+    "0": {
+      "0": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 15
+        }
+      },
+      "__global__": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": 0.75,
+          "ci": [
+            -0.03807515312973597,
+            0.08549906551051893
+          ],
+          "decision": "fail",
+          "delta": 0.0314690846783896,
+          "lb95": -0.03807515312973597,
+          "margins": {
+            "exceedance_f1": 0.02,
+            "pooled_r2": 0.005,
+            "spatial_r2": 0.010305996659858097
+          },
+          "metrics": {
+            "exceedance_f1": {
+              "ci": [
+                null,
+                null
+              ],
+              "defined": false,
+              "delta": null,
+              "lb95": null,
+              "margin": 0.02,
+              "n_boot_defined": 0,
+              "non_inferior": null,
+              "point_new": null,
+              "point_ref": null,
+              "superior": null
+            },
+            "pooled_r2": {
+              "ci": [
+                -0.03807515312973597,
+                0.08549906551051893
+              ],
+              "defined": true,
+              "delta": 0.0314690846783896,
+              "lb95": -0.03807515312973597,
+              "margin": 0.005,
+              "n_boot_defined": 1000,
+              "non_inferior": false,
+              "point_new": 0.6119210555293131,
+              "point_ref": 0.5804519708509235,
+              "superior": false
+            },
+            "spatial_r2": {
+              "ci": [
+                -0.6238002699667671,
+                -0.06261945560440017
+              ],
+              "defined": true,
+              "delta": -0.3003767984776051,
+              "lb95": -0.6238002699667671,
+              "margin": 0.010305996659858097,
+              "n_boot_defined": 1000,
+              "non_inferior": false,
+              "point_new": -0.4354431257155067,
+              "point_ref": -0.13506632723790157,
+              "superior": false
+            }
+          },
+          "n_boot": 1000,
+          "n_clusters": 15,
+          "n_exceed_valid": 5006,
+          "n_rows": 5650,
+          "reasons": [
+            "non-inferiority failed on: pooled_r2, spatial_r2"
+          ],
+          "seed": 42,
+          "skipped": [
+            "exceedance_f1"
+          ]
+        }
+      }
+    },
+    "1": {
+      "1": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 44
+        }
+      },
+      "__global__": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": 0.0,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_selection_alpha_zero",
+          "delta": null,
+          "n_clusters": 44
+        }
+      }
+    },
+    "2": {
+      "2": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": null,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_global_failed",
+          "delta": null,
+          "n_clusters": 147
+        }
+      },
+      "__global__": {
+        "alpha": 0.0,
+        "test": {
+          "alpha_candidate": 0.0,
+          "ci": [
+            null,
+            null
+          ],
+          "decision": "closed_selection_alpha_zero",
+          "delta": null,
+          "n_clusters": 147
+        }
+      }
+    }
+  }
+}

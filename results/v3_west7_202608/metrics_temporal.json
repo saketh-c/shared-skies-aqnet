@@ -1,0 +1,4 @@
+{
+  "absent": true,
+  "note": "no temporal-variant tier artifacts on disk \u2014 temporal-holdout claims may NOT be made from the spatial-OOF numbers (7-day embargo, DESIGN SS2)"
+}

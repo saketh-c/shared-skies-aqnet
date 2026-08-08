@@ -1,0 +1,48 @@
+{
+  "rung": "T4",
+  "declared": "affine slope-recalibration \u2014 the sole declared exception to the frozen-incumbent invariant",
+  "slope_clip": [
+    0.8,
+    1.25
+  ],
+  "n_folds": 4,
+  "seed": 42,
+  "folds": [
+    {
+      "a": 0.6485909632724756,
+      "b": 0.9050078440982332,
+      "b_raw": 0.9050078440982332,
+      "clipped": false,
+      "n_train_rows": 437255,
+      "n_apply_rows": 193310,
+      "note": "ok"
+    },
+    {
+      "a": 0.6778305135962457,
+      "b": 0.9100600967672174,
+      "b_raw": 0.9100600967672174,
+      "clipped": false,
+      "n_train_rows": 450784,
+      "n_apply_rows": 180161,
+      "note": "ok"
+    },
+    {
+      "a": 0.5993007835988502,
+      "b": 0.9215145197921838,
+      "b_raw": 0.9215145197921838,
+      "clipped": false,
+      "n_train_rows": 423696,
+      "n_apply_rows": 204158,
+      "note": "ok"
+    },
+    {
+      "a": 0.6511539204321801,
+      "b": 0.9136870529653431,
+      "b_raw": 0.9136870529653431,
+      "clipped": false,
+      "n_train_rows": 445239,
+      "n_apply_rows": 192178,
+      "note": "ok"
+    }
+  ]
+}

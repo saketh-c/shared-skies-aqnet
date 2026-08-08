@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "n_closed_rows": 109028,
+  "n_bit_mismatch": 0,
+  "tier_mask_convention": "all_columns|closure_on_gated_columns_pre_t4|audited_array=pre_t4_chain",
+  "tier_mask_open_fraction_by_column": {
+    "col_0": 0.8759768579924331,
+    "col_1": 0.0,
+    "col_2": 0.0,
+    "col_3": 0.8756822364843805
+  },
+  "note": "composite must be BIT-identical to T1 on every row where all tier gates are closed/unavailable"
+}

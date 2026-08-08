@@ -1,0 +1,479 @@
+{
+  "quick": false,
+  "seed": 42,
+  "window": [
+    "2021-01-01",
+    "2026-05-01"
+  ],
+  "streams": [
+    "geoscf_pm25",
+    "cams_pm25",
+    "merra2_pm25_proxy"
+  ],
+  "stream_bits": {
+    "geoscf_pm25": 1,
+    "cams_pm25": 2,
+    "merra2_pm25_proxy": 4
+  },
+  "n_nodes": 210,
+  "rbf_scale_km": 200.0,
+  "ridge_lam": 0.01,
+  "min_season_rows": 10,
+  "vault_sites_excluded": [
+    "040011235",
+    "040213002",
+    "060111002",
+    "060192009",
+    "060250010",
+    "060290018",
+    "060510001",
+    "060530008",
+    "060592022",
+    "060710306",
+    "060718001",
+    "060731008",
+    "060890004",
+    "060932001",
+    "060970004",
+    "080030001",
+    "080290004",
+    "080450019",
+    "081030006",
+    "480271045",
+    "480411086",
+    "481210034",
+    "482450021",
+    "483031028",
+    "483230004",
+    "483390078",
+    "483491051",
+    "490190007",
+    "530370002",
+    "530470013"
+  ],
+  "folds": {
+    "0": {
+      "n_train_rows": 346554,
+      "n_train_sites": 261,
+      "n_holdout_rows": 59711,
+      "n_holdout_sites": 38,
+      "streams_fit": [
+        "cams_pm25",
+        "merra2_pm25_proxy"
+      ],
+      "combined": {
+        "rmse": 6.902112099267152,
+        "mae": 4.317217247790009,
+        "bias": 1.030947168842313,
+        "r2": -0.0181280929442178,
+        "n": 40881
+      },
+      "per_stream": {
+        "geoscf_pm25": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        },
+        "cams_pm25": {
+          "rmse": 6.902112099267152,
+          "mae": 4.317217247790009,
+          "bias": 1.030947168842313,
+          "r2": -0.0181280929442178,
+          "n": 40881
+        },
+        "merra2_pm25_proxy": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        }
+      },
+      "pattern_counts": {
+        "0": 18830,
+        "2": 40881
+      }
+    },
+    "1": {
+      "n_train_rows": 359186,
+      "n_train_sites": 261,
+      "n_holdout_rows": 47079,
+      "n_holdout_sites": 38,
+      "streams_fit": [
+        "cams_pm25",
+        "merra2_pm25_proxy"
+      ],
+      "combined": {
+        "rmse": 6.226954928314738,
+        "mae": 4.244020448066072,
+        "bias": -0.41233748726051866,
+        "r2": 0.0026003851134458467,
+        "n": 33595
+      },
+      "per_stream": {
+        "geoscf_pm25": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        },
+        "cams_pm25": {
+          "rmse": 6.226954928314738,
+          "mae": 4.244020448066072,
+          "bias": -0.41233748726051866,
+          "r2": 0.0026003851134458467,
+          "n": 33595
+        },
+        "merra2_pm25_proxy": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        }
+      },
+      "pattern_counts": {
+        "0": 13484,
+        "2": 33595
+      }
+    },
+    "2": {
+      "n_train_rows": 353639,
+      "n_train_sites": 261,
+      "n_holdout_rows": 52626,
+      "n_holdout_sites": 38,
+      "streams_fit": [
+        "cams_pm25",
+        "merra2_pm25_proxy"
+      ],
+      "combined": {
+        "rmse": 5.3591748602946465,
+        "mae": 3.578660622351786,
+        "bias": -0.8582956543070197,
+        "r2": 0.1485737811486777,
+        "n": 52626
+      },
+      "per_stream": {
+        "geoscf_pm25": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        },
+        "cams_pm25": {
+          "rmse": 5.391857101908582,
+          "mae": 3.7058185251320164,
+          "bias": -0.8790083887011255,
+          "r2": 0.1823900635143959,
+          "n": 37781
+        },
+        "merra2_pm25_proxy": {
+          "rmse": 6.137906759648382,
+          "mae": 4.182771312327869,
+          "bias": -0.7967145744113028,
+          "r2": -0.1168420016294307,
+          "n": 52626
+        }
+      },
+      "pattern_counts": {
+        "4": 14845,
+        "6": 37781
+      }
+    },
+    "3": {
+      "n_train_rows": 359651,
+      "n_train_sites": 261,
+      "n_holdout_rows": 46614,
+      "n_holdout_sites": 38,
+      "streams_fit": [
+        "cams_pm25",
+        "merra2_pm25_proxy"
+      ],
+      "combined": {
+        "rmse": 4.534545460269236,
+        "mae": 3.075009733459203,
+        "bias": 0.529179801628543,
+        "r2": 0.10479478347718751,
+        "n": 36965
+      },
+      "per_stream": {
+        "geoscf_pm25": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        },
+        "cams_pm25": {
+          "rmse": 4.5942301979788835,
+          "mae": 3.0866255702287093,
+          "bias": 0.4556557334169854,
+          "r2": 0.08123688032386078,
+          "n": 33626
+        },
+        "merra2_pm25_proxy": {
+          "rmse": 4.346927341341514,
+          "mae": 3.067035477334997,
+          "bias": 0.6383504219588597,
+          "r2": 0.20130370242964046,
+          "n": 10170
+        }
+      },
+      "pattern_counts": {
+        "0": 9649,
+        "2": 26795,
+        "4": 3339,
+        "6": 6831
+      }
+    },
+    "4": {
+      "n_train_rows": 354646,
+      "n_train_sites": 261,
+      "n_holdout_rows": 51619,
+      "n_holdout_sites": 38,
+      "streams_fit": [
+        "cams_pm25",
+        "merra2_pm25_proxy"
+      ],
+      "combined": {
+        "rmse": 5.31770150728211,
+        "mae": 3.824443524189364,
+        "bias": 0.2859450946474661,
+        "r2": 0.029963140831282598,
+        "n": 33534
+      },
+      "per_stream": {
+        "geoscf_pm25": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        },
+        "cams_pm25": {
+          "rmse": 5.31770150728211,
+          "mae": 3.824443524189364,
+          "bias": 0.2859450946474661,
+          "r2": 0.029963140831282598,
+          "n": 33534
+        },
+        "merra2_pm25_proxy": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        }
+      },
+      "pattern_counts": {
+        "0": 18085,
+        "2": 33534
+      }
+    },
+    "5": {
+      "n_train_rows": 358291,
+      "n_train_sites": 261,
+      "n_holdout_rows": 47974,
+      "n_holdout_sites": 38,
+      "streams_fit": [
+        "cams_pm25",
+        "merra2_pm25_proxy"
+      ],
+      "combined": {
+        "rmse": 7.303493681221373,
+        "mae": 3.8731765529696247,
+        "bias": -0.5726346290462437,
+        "r2": -0.001634034368150683,
+        "n": 35260
+      },
+      "per_stream": {
+        "geoscf_pm25": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        },
+        "cams_pm25": {
+          "rmse": 7.36887714527331,
+          "mae": 3.8941507540427347,
+          "bias": -0.5916634800757616,
+          "r2": -0.0010906379216311102,
+          "n": 34123
+        },
+        "merra2_pm25_proxy": {
+          "rmse": 11.77981691203672,
+          "mae": 4.7189223421752,
+          "bias": -1.6301019263234078,
+          "r2": 0.014715138782348203,
+          "n": 4562
+        }
+      },
+      "pattern_counts": {
+        "0": 12714,
+        "2": 30698,
+        "4": 1137,
+        "6": 3425
+      }
+    },
+    "6": {
+      "n_train_rows": 360664,
+      "n_train_sites": 264,
+      "n_holdout_rows": 45601,
+      "n_holdout_sites": 35,
+      "streams_fit": [
+        "cams_pm25",
+        "merra2_pm25_proxy"
+      ],
+      "combined": {
+        "rmse": 8.097558260612164,
+        "mae": 4.567872021846371,
+        "bias": 0.1621706717596758,
+        "r2": -0.10002441765650394,
+        "n": 32818
+      },
+      "per_stream": {
+        "geoscf_pm25": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        },
+        "cams_pm25": {
+          "rmse": 8.131304026589255,
+          "mae": 4.588232449854411,
+          "bias": 0.16958935514834134,
+          "r2": -0.10379873454654098,
+          "n": 32503
+        },
+        "merra2_pm25_proxy": {
+          "rmse": 3.9741735990319564,
+          "mae": 2.776903057584464,
+          "bias": -0.6298469939394555,
+          "r2": 0.33462365855757437,
+          "n": 1499
+        }
+      },
+      "pattern_counts": {
+        "0": 12783,
+        "2": 31319,
+        "4": 315,
+        "6": 1184
+      }
+    },
+    "7": {
+      "n_train_rows": 351224,
+      "n_train_sites": 263,
+      "n_holdout_rows": 55041,
+      "n_holdout_sites": 36,
+      "streams_fit": [
+        "cams_pm25",
+        "merra2_pm25_proxy"
+      ],
+      "combined": {
+        "rmse": 6.513017268112327,
+        "mae": 3.5054534239476176,
+        "bias": -0.2742012818334759,
+        "r2": 0.03379889354354182,
+        "n": 39258
+      },
+      "per_stream": {
+        "geoscf_pm25": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        },
+        "cams_pm25": {
+          "rmse": 6.513017268112327,
+          "mae": 3.5054534239476176,
+          "bias": -0.2742012818334759,
+          "r2": 0.03379889354354182,
+          "n": 39258
+        },
+        "merra2_pm25_proxy": {
+          "rmse": null,
+          "mae": null,
+          "bias": null,
+          "r2": null,
+          "n": 0
+        }
+      },
+      "pattern_counts": {
+        "0": 15783,
+        "2": 39258
+      }
+    }
+  },
+  "full": {
+    "label": "full",
+    "seed": 42,
+    "n_rows": 406265,
+    "n_sites": 299,
+    "excluded_sites": [
+      "040011235",
+      "040213002",
+      "060111002",
+      "060192009",
+      "060250010",
+      "060290018",
+      "060510001",
+      "060530008",
+      "060592022",
+      "060710306",
+      "060718001",
+      "060731008",
+      "060890004",
+      "060932001",
+      "060970004",
+      "080030001",
+      "080290004",
+      "080450019",
+      "081030006",
+      "480271045",
+      "480411086",
+      "481210034",
+      "482450021",
+      "483031028",
+      "483230004",
+      "483390078",
+      "483491051",
+      "490190007",
+      "530370002",
+      "530470013"
+    ],
+    "streams": {
+      "cams_pm25": {
+        "n_rows": 285301,
+        "r2_insample": 0.10324317688169748,
+        "resid_var": 38.04899249634375,
+        "precision": 0.02628190483877052,
+        "seasons_fit": [
+          "DJF",
+          "MAM",
+          "JJA",
+          "SON"
+        ]
+      },
+      "merra2_pm25_proxy": {
+        "n_rows": 68857,
+        "r2_insample": 0.3073896098311002,
+        "resid_var": 27.25891288813746,
+        "precision": 0.03668524875161769,
+        "seasons_fit": [
+          "DJF",
+          "MAM",
+          "JJA",
+          "SON"
+        ]
+      }
+    }
+  },
+  "note": "held-out metrics are descriptive (LOLO-ish, fold-k sites scored by the fold-k model). oof_tier0.npz is written by pipeline2's features stage, which evaluates these fold models at the frame rows -- not by this stage."
+}

@@ -1,0 +1,1769 @@
+{
+  "alpha": 0.1,
+  "coverage_bins": {
+    "column": "nbr_pacal_count_50km",
+    "edges": "0 / 1-3 / >=4",
+    "labels": [
+      "no_pa_50km",
+      "pa_1_3_50km",
+      "pa_ge4_50km"
+    ]
+  },
+  "delta_by_bin": {
+    "0": {
+      "delta": 5.125480796025766,
+      "delta_raw_pre_monotone": 3.136114295789482,
+      "label": "no_pa_50km",
+      "n_units": 58,
+      "source": "bin+monotone_raise"
+    },
+    "1": {
+      "delta": 5.125480796025766,
+      "label": "pa_1_3_50km",
+      "n_units": 24,
+      "source": "bin"
+    },
+    "2": {
+      "delta": 3.8354977908508676,
+      "label": "pa_ge4_50km",
+      "n_units": 99,
+      "source": "bin"
+    },
+    "monotone_enforced": true,
+    "pooled": {
+      "delta": 3.789197267421729,
+      "label": "all_units",
+      "n_units": 181,
+      "source": "pooled"
+    }
+  },
+  "fitted_against_tier_hash": "2a527a7afffdc4ee310285d22534f649efece824bc656cbd085036ee64ece3d2",
+  "n_calibration_units": 181,
+  "quantile_meta": {
+    "alpha": 0.1,
+    "excluded_from_training": {
+      "conformal_rows": 184149,
+      "vault_rows": 109287
+    },
+    "features": [
+      "aod",
+      "cams_pm25",
+      "dust",
+      "hms_smoke",
+      "merra2_dust25",
+      "merra2_oc",
+      "merra2_bc",
+      "merra2_so4",
+      "merra2_ss25",
+      "merra2_pblh",
+      "merra2_pblh_max",
+      "merra2_pblh_min",
+      "merra2_pm25_proxy",
+      "merra2_t2m",
+      "merra2_rh2m",
+      "merra2_u10",
+      "merra2_v10",
+      "merra2_ps",
+      "shortwave",
+      "et0",
+      "cloud_cover",
+      "st_elev",
+      "st_road_km_1km",
+      "st_road_km_5km",
+      "st_nei_pm25_5km",
+      "st_nei_pm25_20km",
+      "dist_to_coast",
+      "doy_sin",
+      "doy_cos",
+      "dow_sin",
+      "dow_cos",
+      "nbr_pacal_25km",
+      "nbr_pacal_count_25km",
+      "nbr_pacal_avail_25km",
+      "nbr_pacal_50km",
+      "nbr_pacal_count_50km",
+      "nbr_pacal_avail_50km",
+      "nbr_pacal_100km",
+      "nbr_pacal_count_100km",
+      "nbr_pacal_avail_100km",
+      "nbr_pacal_std_50km",
+      "nbr_pacal_25km_lag1",
+      "nbr_pacal_count_25km_lag1",
+      "nbr_pacal_avail_25km_lag1",
+      "nbr_pacal_50km_lag1",
+      "nbr_pacal_count_50km_lag1",
+      "nbr_pacal_avail_50km_lag1",
+      "nbr_pacal_100km_lag1",
+      "nbr_pacal_count_100km_lag1",
+      "nbr_pacal_avail_100km_lag1",
+      "nbr_pacal_std_50km_lag1",
+      "nbr_frm_50km_lag1",
+      "nbr_frm_count_50km_lag1",
+      "nbr_frm_avail_50km_lag1",
+      "nbr_frm_50km_lag7",
+      "nbr_frm_count_50km_lag7",
+      "nbr_frm_avail_50km_lag7",
+      "t0_prior",
+      "t0_geoscf_pm25",
+      "t0_cams_pm25",
+      "t0_merra2_pm25_proxy"
+    ],
+    "lightgbm": true,
+    "n_estimators": 2000,
+    "n_folds": 8,
+    "orphan_rows_fold_mean": 95926,
+    "overrides_used": true,
+    "quantiles": [
+      0.05,
+      0.5,
+      0.95
+    ],
+    "quick": false,
+    "tier_hash": "2a527a7afffdc4ee310285d22534f649efece824bc656cbd085036ee64ece3d2"
+  },
+  "quick": false,
+  "ref_date": "2026-05-01",
+  "rho_s_km": 150.0,
+  "ship_window": {
+    "in_window": false,
+    "n_rows": 318042,
+    "n_sites": 234,
+    "site_coverage": 0.9469624288667468,
+    "window": [
+      0.88,
+      0.93
+    ]
+  },
+  "tau_days": 365.0,
+  "unit_scores": [
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-03-31",
+      "lat": 33.41046,
+      "lon": -112.00264,
+      "n_rows": 1708,
+      "score": 1.7511273602308925,
+      "unit_id": "aqs_040134021"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-03-31",
+      "lat": 32.29515,
+      "lon": -110.9823,
+      "n_rows": 1787,
+      "score": 1.5344073875630926,
+      "unit_id": "aqs_040191028"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2024-12-31",
+      "lat": 37.936013,
+      "lon": -122.026154,
+      "n_rows": 1399,
+      "score": 0.8558874632705198,
+      "unit_id": "aqs_060130002"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2025-12-30",
+      "lat": 40.77678,
+      "lon": -124.17948999999999,
+      "n_rows": 590,
+      "score": 0.9004492700233193,
+      "unit_id": "aqs_060231004"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2025-12-31",
+      "lat": 32.97833,
+      "lon": -115.53917,
+      "n_rows": 1625,
+      "score": 1.0811093435537273,
+      "unit_id": "aqs_060250007"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-04-30",
+      "lat": 35.356615,
+      "lon": -119.062613,
+      "n_rows": 1720,
+      "score": 2.475641551713199,
+      "unit_id": "aqs_060290014"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-04-29",
+      "lat": 35.324636,
+      "lon": -118.99762699999998,
+      "n_rows": 589,
+      "score": 2.0220044585964487,
+      "unit_id": "aqs_060290016"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2022-09-29",
+      "lat": 34.1365,
+      "lon": -117.92391,
+      "n_rows": 196,
+      "score": 1.0834589453881645,
+      "unit_id": "aqs_060370002"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-03-31",
+      "lat": 34.06659,
+      "lon": -118.22688,
+      "n_rows": 1820,
+      "score": 1.9454786525606853,
+      "unit_id": "aqs_060371103"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2025-12-03",
+      "lat": 34.19925,
+      "lon": -118.53276,
+      "n_rows": 589,
+      "score": 1.2918230859109197,
+      "unit_id": "aqs_060371201"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2025-12-30",
+      "lat": 34.1326,
+      "lon": -118.12720000000002,
+      "n_rows": 595,
+      "score": 1.2326917847554295,
+      "unit_id": "aqs_060372005"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2022-06-28",
+      "lat": 33.82376,
+      "lon": -118.18921,
+      "n_rows": 174,
+      "score": 1.3733707592306885,
+      "unit_id": "aqs_060374002"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2022-04-30",
+      "lat": 33.79236,
+      "lon": -118.17533,
+      "n_rows": 484,
+      "score": 1.423913680427539,
+      "unit_id": "aqs_060374004"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2025-12-31",
+      "lat": 37.30832,
+      "lon": -120.480456,
+      "n_rows": 1795,
+      "score": 0.4654634341363424,
+      "unit_id": "aqs_060472510"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-03-31",
+      "lat": 36.694261,
+      "lon": -121.623271,
+      "n_rows": 1804,
+      "score": 2.445022320437854,
+      "unit_id": "aqs_060531003"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2025-12-31",
+      "lat": 33.447867,
+      "lon": -117.088649,
+      "n_rows": 1732,
+      "score": 0.07428460780710111,
+      "unit_id": "aqs_060650009"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-03-31",
+      "lat": 33.71969,
+      "lon": -116.18970000000002,
+      "n_rows": 1280,
+      "score": 1.872705946340142,
+      "unit_id": "aqs_060650500"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2025-12-30",
+      "lat": 33.85275,
+      "lon": -116.54100999999999,
+      "n_rows": 594,
+      "score": 0.36394444460565367,
+      "unit_id": "aqs_060655001"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-02-28",
+      "lat": 38.683304,
+      "lon": -121.164457,
+      "n_rows": 1812,
+      "score": 0.3603393219105424,
+      "unit_id": "aqs_060670012"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2025-12-30",
+      "lat": 34.10002,
+      "lon": -117.49201,
+      "n_rows": 596,
+      "score": 1.3192653730180623,
+      "unit_id": "aqs_060712002"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2025-12-31",
+      "lat": 32.578165,
+      "lon": -116.921374,
+      "n_rows": 1082,
+      "score": 7.947572496522746,
+      "unit_id": "aqs_060731014"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-01-31",
+      "lat": 37.961578,
+      "lon": -121.28141399999998,
+      "n_rows": 1436,
+      "score": 3.1588147010359244,
+      "unit_id": "aqs_060771003"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-03-31",
+      "lat": 35.04673,
+      "lon": -120.58777,
+      "n_rows": 1786,
+      "score": 4.036772154279575,
+      "unit_id": "aqs_060792007"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-03-31",
+      "lat": 35.259502,
+      "lon": -120.64472,
+      "n_rows": 1742,
+      "score": 3.131893477237899,
+      "unit_id": "aqs_060792020"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-03-31",
+      "lat": 35.49453,
+      "lon": -120.66617,
+      "n_rows": 1769,
+      "score": 2.0019962016635118,
+      "unit_id": "aqs_060798002"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2024-12-31",
+      "lat": 37.482934,
+      "lon": -122.20337,
+      "n_rows": 1031,
+      "score": 1.8174606173902204,
+      "unit_id": "aqs_060811001"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2024-12-31",
+      "lat": 36.999571,
+      "lon": -121.574684,
+      "n_rows": 1316,
+      "score": 1.032125592599881,
+      "unit_id": "aqs_060850002"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-01-31",
+      "lat": 39.138773,
+      "lon": -121.618549,
+      "n_rows": 1795,
+      "score": 5.738890753056854,
+      "unit_id": "aqs_061010003"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2025-12-31",
+      "lat": 40.17093,
+      "lon": -122.25556,
+      "n_rows": 1761,
+      "score": 1.1858657877795737,
+      "unit_id": "aqs_061030007"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-01-31",
+      "lat": 34.276316,
+      "lon": -118.683685,
+      "n_rows": 1798,
+      "score": 0.8801031889564186,
+      "unit_id": "aqs_061112002"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2025-12-31",
+      "lat": 38.66121,
+      "lon": -121.73269,
+      "n_rows": 1302,
+      "score": 1.204266662209129,
+      "unit_id": "aqs_061131003"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-04-30",
+      "lat": 40.012969000000005,
+      "lon": -105.267212,
+      "n_rows": 834,
+      "score": 1.1512081613605343,
+      "unit_id": "aqs_080131001"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-04-30",
+      "lat": 39.7861,
+      "lon": -104.9886,
+      "n_rows": 1795,
+      "score": 2.0809717810120976,
+      "unit_id": "aqs_080310028"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-04-30",
+      "lat": 40.414877,
+      "lon": -104.70693,
+      "n_rows": 1819,
+      "score": 1.105439032760506,
+      "unit_id": "aqs_081230006"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-04-30",
+      "lat": 40.209387,
+      "lon": -104.82405,
+      "n_rows": 930,
+      "score": 0.8890634132564994,
+      "unit_id": "aqs_081230008"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-03-31",
+      "lat": 39.399837,
+      "lon": -119.739606,
+      "n_rows": 1803,
+      "score": 0.9326807257195717,
+      "unit_id": "aqs_320310025"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-03-31",
+      "lat": 39.621434,
+      "lon": -119.71877000000002,
+      "n_rows": 1788,
+      "score": 0.7176252411163304,
+      "unit_id": "aqs_320311007"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-03-31",
+      "lat": 29.635135,
+      "lon": -98.417659,
+      "n_rows": 718,
+      "score": 4.924611854307643,
+      "unit_id": "aqs_480291087"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-03-31",
+      "lat": 29.30265,
+      "lon": -103.17781,
+      "n_rows": 1633,
+      "score": 4.284374938495179,
+      "unit_id": "aqs_480430101"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2025-02-23",
+      "lat": 32.820061,
+      "lon": -96.86011699999999,
+      "n_rows": 1410,
+      "score": 2.5896819940392852,
+      "unit_id": "aqs_481130069"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-03-31",
+      "lat": 31.667549,
+      "lon": -106.287972,
+      "n_rows": 540,
+      "score": 10.85319417323665,
+      "unit_id": "aqs_481410057"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-02-28",
+      "lat": 29.90103,
+      "lon": -95.326147,
+      "n_rows": 1740,
+      "score": 3.839320351941077,
+      "unit_id": "aqs_482010024"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-02-28",
+      "lat": 29.770692,
+      "lon": -95.031237,
+      "n_rows": 1706,
+      "score": 3.34518505654189,
+      "unit_id": "aqs_482010058"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-03-31",
+      "lat": 29.723333,
+      "lon": -95.635941,
+      "n_rows": 1622,
+      "score": 4.123362241241672,
+      "unit_id": "aqs_482010066"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-02-28",
+      "lat": 29.670552,
+      "lon": -95.129933,
+      "n_rows": 1772,
+      "score": 3.8354977908508676,
+      "unit_id": "aqs_482011039"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-02-28",
+      "lat": 29.763566999999995,
+      "lon": -95.27223300000001,
+      "n_rows": 56,
+      "score": 4.170426752981006,
+      "unit_id": "aqs_482011056"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-03-31",
+      "lat": 26.288486,
+      "lon": -98.152059,
+      "n_rows": 1391,
+      "score": 3.378961370921198,
+      "unit_id": "aqs_482151046"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-03-31",
+      "lat": 32.564967,
+      "lon": -96.317683,
+      "n_rows": 1283,
+      "score": 3.770102599936991,
+      "unit_id": "aqs_482570005"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-03-26",
+      "lat": 27.804489,
+      "lon": -97.431528,
+      "n_rows": 1783,
+      "score": 4.220145723104807,
+      "unit_id": "aqs_483550032"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-03-31",
+      "lat": 27.811833,
+      "lon": -97.465706,
+      "n_rows": 1338,
+      "score": 3.4774054029839405,
+      "unit_id": "aqs_483550034"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-02-28",
+      "lat": 30.194167,
+      "lon": -93.866944,
+      "n_rows": 1678,
+      "score": 3.136114295789482,
+      "unit_id": "aqs_483611100"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-03-31",
+      "lat": 32.805816,
+      "lon": -97.356526,
+      "n_rows": 1740,
+      "score": 3.5781709250491147,
+      "unit_id": "aqs_484391002"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-03-31",
+      "lat": 30.263207,
+      "lon": -97.712885,
+      "n_rows": 1757,
+      "score": 3.789197267421729,
+      "unit_id": "aqs_484530021"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-05-01",
+      "lat": 41.485007,
+      "lon": -112.021476,
+      "n_rows": 912,
+      "score": 1.244250761362331,
+      "unit_id": "aqs_490030005"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-05-01",
+      "lat": 39.59575,
+      "lon": -110.770111,
+      "n_rows": 1296,
+      "score": -0.6111753077148208,
+      "unit_id": "aqs_490071003"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-05-01",
+      "lat": 40.902967,
+      "lon": -111.884467,
+      "n_rows": 1824,
+      "score": 1.4332987893833082,
+      "unit_id": "aqs_490110004"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-05-01",
+      "lat": 40.136378,
+      "lon": -111.657936,
+      "n_rows": 1824,
+      "score": 1.9974948528279128,
+      "unit_id": "aqs_490495010"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-02-28",
+      "lat": 47.568236,
+      "lon": -122.308628,
+      "n_rows": 1730,
+      "score": 2.1915101394482193,
+      "unit_id": "aqs_530330080"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-01-31",
+      "lat": 47.390821,
+      "lon": -122.25585,
+      "n_rows": 31,
+      "score": 2.443260596641746,
+      "unit_id": "aqs_530330095"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-02-28",
+      "lat": 47.592675,
+      "lon": -122.627397,
+      "n_rows": 1774,
+      "score": 0.3195095257169789,
+      "unit_id": "aqs_530350007"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-02-28",
+      "lat": 48.054314999999995,
+      "lon": -122.171529,
+      "n_rows": 1781,
+      "score": 1.1640045705103619,
+      "unit_id": "aqs_530611007"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-02-28",
+      "lat": 48.544448,
+      "lon": -117.903425,
+      "n_rows": 1782,
+      "score": 1.2794540419628069,
+      "unit_id": "aqs_530650005"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-02-28",
+      "lat": 48.760036,
+      "lon": -122.456463,
+      "n_rows": 1669,
+      "score": -0.4437292500963794,
+      "unit_id": "aqs_530730019"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-02-28",
+      "lat": 46.31932,
+      "lon": -119.999677,
+      "n_rows": 954,
+      "score": 1.2385557111708634,
+      "unit_id": "aqs_530770005"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-02-28",
+      "lat": 46.594952,
+      "lon": -120.512283,
+      "n_rows": 1803,
+      "score": 0.7969205099638983,
+      "unit_id": "aqs_530770009"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.620468,
+      "lon": -98.53274,
+      "n_rows": 1601,
+      "score": -0.4205059636345405,
+      "unit_id": "pa_101808"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 32.719143,
+      "lon": -97.353935,
+      "n_rows": 1619,
+      "score": 1.2623687477003127,
+      "unit_id": "pa_104402"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 35.89019,
+      "lon": -106.04514,
+      "n_rows": 1501,
+      "score": 0.19243141086558335,
+      "unit_id": "pa_104876"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 32.502693,
+      "lon": -96.99841,
+      "n_rows": 701,
+      "score": 1.470130283290863,
+      "unit_id": "pa_109562"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 32.576748,
+      "lon": -97.008194,
+      "n_rows": 1261,
+      "score": 0.4074770774404506,
+      "unit_id": "pa_109566"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-05-01",
+      "lat": 33.35849,
+      "lon": -93.60401,
+      "n_rows": 751,
+      "score": 0.22317379512736046,
+      "unit_id": "pa_113074"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2025-12-30",
+      "lat": 33.238647,
+      "lon": -97.109695,
+      "n_rows": 267,
+      "score": 0.8060542228796077,
+      "unit_id": "pa_114119"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 33.290825,
+      "lon": -96.61884,
+      "n_rows": 1510,
+      "score": 4.189850837148217,
+      "unit_id": "pa_118993"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2024-04-28",
+      "lat": 31.906324000000005,
+      "lon": -106.41056,
+      "n_rows": 566,
+      "score": -0.3362485370108814,
+      "unit_id": "pa_119625"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2025-05-12",
+      "lat": 29.468405000000004,
+      "lon": -98.76946,
+      "n_rows": 1122,
+      "score": 0.7305352754733061,
+      "unit_id": "pa_124669"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 33.022003,
+      "lon": -97.22522,
+      "n_rows": 977,
+      "score": 2.107523829614321,
+      "unit_id": "pa_127045"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 33.032448,
+      "lon": -97.1484,
+      "n_rows": 1354,
+      "score": 1.6113422933548005,
+      "unit_id": "pa_127059"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2025-10-13",
+      "lat": 29.803877,
+      "lon": -95.30717,
+      "n_rows": 241,
+      "score": -0.6353664310473448,
+      "unit_id": "pa_127463"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 30.153257,
+      "lon": -96.012215,
+      "n_rows": 560,
+      "score": 0.7858819906447376,
+      "unit_id": "pa_128017"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2025-12-29",
+      "lat": 32.836563,
+      "lon": -96.810425,
+      "n_rows": 755,
+      "score": 0.4128148919272032,
+      "unit_id": "pa_128645"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-03-10",
+      "lat": 29.6531,
+      "lon": -98.29758,
+      "n_rows": 646,
+      "score": 0.6532679490067892,
+      "unit_id": "pa_133141"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 35.63695,
+      "lon": -105.98577,
+      "n_rows": 1328,
+      "score": 0.9367477377613822,
+      "unit_id": "pa_138876"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 32.45638,
+      "lon": -97.00684,
+      "n_rows": 664,
+      "score": 0.3222774992149233,
+      "unit_id": "pa_142154"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.464112999999998,
+      "lon": -98.48492399999999,
+      "n_rows": 1405,
+      "score": 0.11763926376692524,
+      "unit_id": "pa_143258"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-05-01",
+      "lat": 32.227688,
+      "lon": -98.22395999999999,
+      "n_rows": 1298,
+      "score": 0.47566793708215727,
+      "unit_id": "pa_143398"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-05-01",
+      "lat": 32.295547,
+      "lon": -106.63077,
+      "n_rows": 824,
+      "score": 1.1047050868033716,
+      "unit_id": "pa_143738"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.77624,
+      "lon": -95.10313,
+      "n_rows": 1246,
+      "score": 0.38180755778936515,
+      "unit_id": "pa_148709"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 30.66903,
+      "lon": -98.07575,
+      "n_rows": 1150,
+      "score": 0.03406901513667471,
+      "unit_id": "pa_149506"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2025-12-30",
+      "lat": 29.583847,
+      "lon": -98.630165,
+      "n_rows": 98,
+      "score": -0.4066461661734646,
+      "unit_id": "pa_151868"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 32.91304,
+      "lon": -105.5253,
+      "n_rows": 1067,
+      "score": 3.0493528715523626,
+      "unit_id": "pa_156335"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.55004,
+      "lon": -95.68345,
+      "n_rows": 713,
+      "score": -0.11857896195520112,
+      "unit_id": "pa_161141"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 30.556028,
+      "lon": -96.01281,
+      "n_rows": 1032,
+      "score": 0.3799842642249569,
+      "unit_id": "pa_161237"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-11",
+      "lat": 30.266005,
+      "lon": -97.751915,
+      "n_rows": 719,
+      "score": 0.24975345726234544,
+      "unit_id": "pa_161581"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.685053,
+      "lon": -95.13147,
+      "n_rows": 228,
+      "score": 0.34331936164083743,
+      "unit_id": "pa_161689"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.599012,
+      "lon": -98.71258,
+      "n_rows": 1196,
+      "score": -0.5798206364296234,
+      "unit_id": "pa_162137"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 35.697872,
+      "lon": -105.92414,
+      "n_rows": 1101,
+      "score": 2.854241435309428,
+      "unit_id": "pa_162303"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.803095,
+      "lon": -95.096,
+      "n_rows": 830,
+      "score": 0.8619404769904389,
+      "unit_id": "pa_166399"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.776548,
+      "lon": -95.153625,
+      "n_rows": 938,
+      "score": -0.22176517642126115,
+      "unit_id": "pa_166441"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 33.969128,
+      "lon": -96.40198,
+      "n_rows": 1156,
+      "score": 1.9650078531701904,
+      "unit_id": "pa_166475"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 29.752865,
+      "lon": -98.145195,
+      "n_rows": 937,
+      "score": -0.28634533961978725,
+      "unit_id": "pa_167655"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.775267000000003,
+      "lon": -95.693016,
+      "n_rows": 995,
+      "score": -0.19122068994510677,
+      "unit_id": "pa_173719"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 35.631905,
+      "lon": -106.04361,
+      "n_rows": 982,
+      "score": -0.26376942738721443,
+      "unit_id": "pa_176071"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 33.173267,
+      "lon": -105.46362,
+      "n_rows": 189,
+      "score": 1.4008832237076536,
+      "unit_id": "pa_181145"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 30.188492,
+      "lon": -97.86353,
+      "n_rows": 912,
+      "score": 0.14915477552917622,
+      "unit_id": "pa_184011"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-05-01",
+      "lat": 35.929153,
+      "lon": -94.96466,
+      "n_rows": 1642,
+      "score": 0.8381752327451695,
+      "unit_id": "pa_18585"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.681028000000005,
+      "lon": -95.1707,
+      "n_rows": 632,
+      "score": 0.9181572024763796,
+      "unit_id": "pa_186263"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 30.094578,
+      "lon": -95.48181,
+      "n_rows": 797,
+      "score": 0.7511832338443476,
+      "unit_id": "pa_194469"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 36.0825,
+      "lon": -95.96178,
+      "n_rows": 443,
+      "score": 5.125480796025766,
+      "unit_id": "pa_196707"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-03-10",
+      "lat": 32.779594,
+      "lon": -106.17384,
+      "n_rows": 102,
+      "score": 0.3686008601830988,
+      "unit_id": "pa_196811"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 34.23154,
+      "lon": -95.64216600000002,
+      "n_rows": 661,
+      "score": -0.2379313357630064,
+      "unit_id": "pa_204043"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 34.53308,
+      "lon": -96.21819,
+      "n_rows": 633,
+      "score": 0.4125551764822992,
+      "unit_id": "pa_204091"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-08",
+      "lat": 29.365728,
+      "lon": -98.47931999999999,
+      "n_rows": 700,
+      "score": -0.1084883679726385,
+      "unit_id": "pa_204497"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 33.157124,
+      "lon": -96.360146,
+      "n_rows": 1803,
+      "score": 4.427354681909448,
+      "unit_id": "pa_20487"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-29",
+      "lat": 32.730137,
+      "lon": -97.12047,
+      "n_rows": 411,
+      "score": 3.212260101537308,
+      "unit_id": "pa_211511"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 33.227592,
+      "lon": -97.60712,
+      "n_rows": 633,
+      "score": -0.1311761825994182,
+      "unit_id": "pa_211523"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 35.960484,
+      "lon": -95.63205,
+      "n_rows": 264,
+      "score": -0.38193056272516657,
+      "unit_id": "pa_214881"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 35.648308,
+      "lon": -95.95781,
+      "n_rows": 380,
+      "score": -0.23889166514274596,
+      "unit_id": "pa_214895"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 30.738123000000005,
+      "lon": -97.71929,
+      "n_rows": 539,
+      "score": 0.24692654726605845,
+      "unit_id": "pa_215469"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 30.03465,
+      "lon": -95.62581999999999,
+      "n_rows": 636,
+      "score": 0.2523971341855251,
+      "unit_id": "pa_217323"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 30.232843,
+      "lon": -98.17323,
+      "n_rows": 423,
+      "score": -0.06463381241082722,
+      "unit_id": "pa_222065"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 30.468704,
+      "lon": -95.903175,
+      "n_rows": 610,
+      "score": 1.9173150137063768,
+      "unit_id": "pa_222417"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 29.682943,
+      "lon": -95.14033,
+      "n_rows": 271,
+      "score": -0.5395156247462296,
+      "unit_id": "pa_222589"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.70345,
+      "lon": -95.05392500000002,
+      "n_rows": 575,
+      "score": 0.22428574878052743,
+      "unit_id": "pa_222815"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-04-30",
+      "lat": 26.191159999999996,
+      "lon": -98.37472,
+      "n_rows": 563,
+      "score": 0.7277790536031965,
+      "unit_id": "pa_223809"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 36.479156,
+      "lon": -94.33789,
+      "n_rows": 516,
+      "score": 0.4043933479706556,
+      "unit_id": "pa_227787"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-04-30",
+      "lat": 29.423779999999997,
+      "lon": -98.51617399999999,
+      "n_rows": 65,
+      "score": -0.12514458627570502,
+      "unit_id": "pa_231133"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.356841999999997,
+      "lon": -98.50358,
+      "n_rows": 232,
+      "score": -0.30825128620979925,
+      "unit_id": "pa_231165"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.704205999999996,
+      "lon": -95.17937000000002,
+      "n_rows": 299,
+      "score": -0.538140693166838,
+      "unit_id": "pa_235425"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 29.803728,
+      "lon": -95.307686,
+      "n_rows": 419,
+      "score": 0.7730478392673366,
+      "unit_id": "pa_235427"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 35.243324,
+      "lon": -96.248604,
+      "n_rows": 363,
+      "score": 1.3533397821711626,
+      "unit_id": "pa_236091"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 35.827175,
+      "lon": -96.391266,
+      "n_rows": 346,
+      "score": 1.1907133734124056,
+      "unit_id": "pa_236097"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 36.036,
+      "lon": -96.011024,
+      "n_rows": 381,
+      "score": 1.1990683770865918,
+      "unit_id": "pa_236123"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 32.7311,
+      "lon": -96.3225,
+      "n_rows": 425,
+      "score": 1.848037645845519,
+      "unit_id": "pa_242357"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 30.088329999999996,
+      "lon": -99.28281399999999,
+      "n_rows": 276,
+      "score": -0.08146488256195283,
+      "unit_id": "pa_243801"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2025-09-29",
+      "lat": 29.793543,
+      "lon": -95.33716,
+      "n_rows": 204,
+      "score": -0.2669309881189772,
+      "unit_id": "pa_246009"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-01-06",
+      "lat": 32.417114,
+      "lon": -97.24083999999999,
+      "n_rows": 361,
+      "score": 0.34816210790861746,
+      "unit_id": "pa_255463"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 33.546738,
+      "lon": -96.58845000000001,
+      "n_rows": 243,
+      "score": -0.18295941725681253,
+      "unit_id": "pa_261297"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 35.57258,
+      "lon": -94.3641,
+      "n_rows": 297,
+      "score": 0.17473733573293249,
+      "unit_id": "pa_261707"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 30.737377,
+      "lon": -98.29991,
+      "n_rows": 273,
+      "score": 1.3565655118496487,
+      "unit_id": "pa_263923"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 30.706795,
+      "lon": -98.325096,
+      "n_rows": 291,
+      "score": -0.16890409855612631,
+      "unit_id": "pa_263973"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 32.995834,
+      "lon": -96.725136,
+      "n_rows": 240,
+      "score": 1.0914149530597044,
+      "unit_id": "pa_266465"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.763600000000004,
+      "lon": -95.7079,
+      "n_rows": 241,
+      "score": 2.3862225727599675,
+      "unit_id": "pa_272881"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.40652,
+      "lon": -98.53665,
+      "n_rows": 183,
+      "score": -0.4753300138846921,
+      "unit_id": "pa_273535"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2025-12-29",
+      "lat": 29.36371,
+      "lon": -98.49517,
+      "n_rows": 149,
+      "score": 0.19763097505174265,
+      "unit_id": "pa_273583"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.357466,
+      "lon": -98.48836,
+      "n_rows": 177,
+      "score": -0.29801792569583263,
+      "unit_id": "pa_273729"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.364033,
+      "lon": -98.48955499999998,
+      "n_rows": 120,
+      "score": -0.12260314624817781,
+      "unit_id": "pa_274402"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-02",
+      "lat": 29.356503,
+      "lon": -98.504295,
+      "n_rows": 93,
+      "score": -0.33188359121206545,
+      "unit_id": "pa_274720"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2025-12-29",
+      "lat": 29.354754999999997,
+      "lon": -98.50518,
+      "n_rows": 156,
+      "score": -0.5897825509064685,
+      "unit_id": "pa_275348"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 30.279041,
+      "lon": -97.72593,
+      "n_rows": 1606,
+      "score": 1.08375238709284,
+      "unit_id": "pa_27539"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 30.277252,
+      "lon": -97.73332,
+      "n_rows": 1817,
+      "score": 1.081548303975861,
+      "unit_id": "pa_27573"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 32.6153,
+      "lon": -97.06244,
+      "n_rows": 139,
+      "score": -0.04745098588738017,
+      "unit_id": "pa_280456"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 32.70023,
+      "lon": -97.00805,
+      "n_rows": 139,
+      "score": 0.46301108506196975,
+      "unit_id": "pa_280470"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 30.483,
+      "lon": -97.8485,
+      "n_rows": 1759,
+      "score": -0.16460484548070475,
+      "unit_id": "pa_2806"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-05-01",
+      "lat": 31.872591,
+      "lon": -106.54606,
+      "n_rows": 146,
+      "score": 0.16314523167487405,
+      "unit_id": "pa_282756"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-04-30",
+      "lat": 32.894684,
+      "lon": -96.81138599999998,
+      "n_rows": 92,
+      "score": 0.1894824174419263,
+      "unit_id": "pa_283882"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 30.15146,
+      "lon": -95.590614,
+      "n_rows": 127,
+      "score": 3.3158872852975385,
+      "unit_id": "pa_288282"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.73305,
+      "lon": -95.58551,
+      "n_rows": 1819,
+      "score": 0.06396971146629582,
+      "unit_id": "pa_28851"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-05-01",
+      "lat": 35.260136,
+      "lon": -95.09233,
+      "n_rows": 92,
+      "score": 0.38896774177317184,
+      "unit_id": "pa_288660"
+    },
+    {
+      "coverage_bin": 0,
+      "last_date": "2026-05-01",
+      "lat": 27.626091,
+      "lon": -97.29705,
+      "n_rows": 51,
+      "score": 0.845761662245188,
+      "unit_id": "pa_298845"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 30.28345,
+      "lon": -97.72317,
+      "n_rows": 1826,
+      "score": 0.3652054630004855,
+      "unit_id": "pa_30689"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 35.680393,
+      "lon": -105.95171000000002,
+      "n_rows": 1777,
+      "score": -0.09670229713256528,
+      "unit_id": "pa_33127"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 35.06074,
+      "lon": -106.1962,
+      "n_rows": 1820,
+      "score": -0.013789212208682677,
+      "unit_id": "pa_36435"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 30.460455,
+      "lon": -97.991196,
+      "n_rows": 1798,
+      "score": -0.0559578845925639,
+      "unit_id": "pa_39123"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.70283,
+      "lon": -95.443855,
+      "n_rows": 749,
+      "score": 4.634094646901391,
+      "unit_id": "pa_46237"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2025-12-30",
+      "lat": 29.740562,
+      "lon": -95.39085,
+      "n_rows": 249,
+      "score": -0.9258348936178846,
+      "unit_id": "pa_47879"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.797358,
+      "lon": -95.48999,
+      "n_rows": 1803,
+      "score": -0.24553891071705003,
+      "unit_id": "pa_51959"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 33.452213,
+      "lon": -96.70058399999999,
+      "n_rows": 1282,
+      "score": 4.211362898710615,
+      "unit_id": "pa_53193"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-02-24",
+      "lat": 35.08653,
+      "lon": -106.62877,
+      "n_rows": 1826,
+      "score": 0.8336236237740904,
+      "unit_id": "pa_56279"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 36.145294,
+      "lon": -106.08805,
+      "n_rows": 870,
+      "score": 0.1949831303928553,
+      "unit_id": "pa_61011"
+    },
+    {
+      "coverage_bin": 1,
+      "last_date": "2026-03-18",
+      "lat": 32.74241,
+      "lon": -94.94833,
+      "n_rows": 1651,
+      "score": -0.13595651292673416,
+      "unit_id": "pa_62063"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 29.71706,
+      "lon": -95.30876,
+      "n_rows": 1799,
+      "score": 0.0358250700663465,
+      "unit_id": "pa_6752"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2025-10-15",
+      "lat": 35.09487,
+      "lon": -106.48217,
+      "n_rows": 1719,
+      "score": 0.007216473379177302,
+      "unit_id": "pa_73561"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 30.177912,
+      "lon": -97.78982,
+      "n_rows": 1788,
+      "score": 0.592630363432491,
+      "unit_id": "pa_76047"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 32.751972,
+      "lon": -97.36452,
+      "n_rows": 1249,
+      "score": 5.85079492533434,
+      "unit_id": "pa_78309"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 30.586252,
+      "lon": -97.77036,
+      "n_rows": 1580,
+      "score": 0.8329766690979277,
+      "unit_id": "pa_85175"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 32.520557,
+      "lon": -96.945,
+      "n_rows": 1266,
+      "score": 0.19777362901618467,
+      "unit_id": "pa_87019"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 32.81998,
+      "lon": -96.46654499999998,
+      "n_rows": 1697,
+      "score": 2.4836012086613426,
+      "unit_id": "pa_90785"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 30.214636000000002,
+      "lon": -98.08331,
+      "n_rows": 1397,
+      "score": 0.363660498011658,
+      "unit_id": "pa_94865"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 35.63751,
+      "lon": -105.894905,
+      "n_rows": 1349,
+      "score": 0.1563707662268108,
+      "unit_id": "pa_96293"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-05-01",
+      "lat": 35.13877,
+      "lon": -106.50773,
+      "n_rows": 1629,
+      "score": 0.3082528133086804,
+      "unit_id": "pa_96843"
+    },
+    {
+      "coverage_bin": 2,
+      "last_date": "2026-04-30",
+      "lat": 32.45916,
+      "lon": -96.97078,
+      "n_rows": 1507,
+      "score": 0.22452927195590533,
+      "unit_id": "pa_99593"
+    }
+  ]
+}

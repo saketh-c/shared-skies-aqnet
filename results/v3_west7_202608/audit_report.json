@@ -1,0 +1,28 @@
+{
+  "generated": "2026-08-06 17:00:34",
+  "quick": false,
+  "python": "3.12.5",
+  "numpy": "2.4.6",
+  "pandas": "3.0.5",
+  "pa_channel": {
+    "path": "/storage/scratch1/8/ntan68/aqnet/repo/pipeline/purpleair_full_dataset.parquet",
+    "n_rows": 412507,
+    "pm25_columns": [
+      "pm25"
+    ],
+    "single_pm25_atm": true
+  },
+  "colocation_inventory": {
+    "pairs_le_1km": 7,
+    "pairs_le_5km": 82,
+    "pairs_le_10km": 246,
+    "pairs_le_25km": 866
+  },
+  "cf1_refetch": {
+    "decision": "skip_refetch",
+    "n_sensor_days": 412507,
+    "est_api_points": 1031267,
+    "est_wall_clock_days": 2.8,
+    "fallback": "pa_cf1 := ATM below 20 ug/m3; channel_reconstructed=1 above (rows excluded from exceedance labels, cal_var inflated)"
+  }
+}

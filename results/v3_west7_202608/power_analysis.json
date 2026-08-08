@@ -1,0 +1,214 @@
+{
+  "mde_pooled_r2": 0.005,
+  "mde_site_r2": 0.010305996659858097,
+  "margins": {
+    "pooled_r2": 0.005,
+    "spatial_r2": 0.010305996659858097,
+    "exceedance_f1": 0.02
+  },
+  "power_detail": {
+    "n_rows": 293543,
+    "n_clusters": 340,
+    "n_boot": 400,
+    "seed": 42,
+    "delta_grid": [
+      0.005,
+      0.0075,
+      0.01,
+      0.015,
+      0.02,
+      0.03,
+      0.05
+    ],
+    "curve": [
+      {
+        "delta_injected": 0.005,
+        "pooled": {
+          "point": 0.005,
+          "lb95": 0.004380538196501186
+        },
+        "spatial": {
+          "point": 0.010305996659858097,
+          "lb95": 0.00923464483069506
+        },
+        "exceedance_f1": {
+          "point": 0.0,
+          "lb95": 0.0
+        }
+      },
+      {
+        "delta_injected": 0.0075,
+        "pooled": {
+          "point": 0.0075,
+          "lb95": 0.006570807294751757
+        },
+        "spatial": {
+          "point": 0.015458994989787866,
+          "lb95": 0.013851967246042434
+        },
+        "exceedance_f1": {
+          "point": 0.0,
+          "lb95": 0.0
+        }
+      },
+      {
+        "delta_injected": 0.01,
+        "pooled": {
+          "point": 0.01,
+          "lb95": 0.008761076393002507
+        },
+        "spatial": {
+          "point": 0.02061199331971697,
+          "lb95": 0.01846928966139081
+        },
+        "exceedance_f1": {
+          "point": 0.0,
+          "lb95": 0.0
+        }
+      },
+      {
+        "delta_injected": 0.015,
+        "pooled": {
+          "point": 0.015,
+          "lb95": 0.013141614589503733
+        },
+        "spatial": {
+          "point": 0.0309179899795764,
+          "lb95": 0.027703934492086208
+        },
+        "exceedance_f1": {
+          "point": 0.0,
+          "lb95": 0.0
+        }
+      },
+      {
+        "delta_injected": 0.02,
+        "pooled": {
+          "point": 0.02,
+          "lb95": 0.017522152786005014
+        },
+        "spatial": {
+          "point": 0.04122398663943527,
+          "lb95": 0.036938579322782
+        },
+        "exceedance_f1": {
+          "point": 0.0055495175048578815,
+          "lb95": 0.0
+        }
+      },
+      {
+        "delta_injected": 0.03,
+        "pooled": {
+          "point": 0.03,
+          "lb95": 0.026283229179007467
+        },
+        "spatial": {
+          "point": 0.061835979959153686,
+          "lb95": 0.05540786898417382
+        },
+        "exceedance_f1": {
+          "point": 0.011067323481116581,
+          "lb95": 0.0
+        }
+      },
+      {
+        "delta_injected": 0.05,
+        "pooled": {
+          "point": 0.05,
+          "lb95": 0.04380538196501252
+        },
+        "spatial": {
+          "point": 0.1030599665985904,
+          "lb95": 0.09234644830695692
+        },
+        "exceedance_f1": {
+          "point": 0.011067323481116581,
+          "lb95": 0.0
+        }
+      }
+    ],
+    "r2_ref": 0.5827753760491321,
+    "source": "v1_artifacts/oof_meta.npz:oof_meta"
+  },
+  "t2_killswitch": {
+    "kriging_passes": false,
+    "advisory": false,
+    "admission": {
+      "decision": "fail",
+      "delta": -0.06422846801275506,
+      "ci": [
+        -0.09579707595212172,
+        -0.0375033648401338
+      ],
+      "lb95": -0.09579707595212172,
+      "n_clusters": 340,
+      "n_rows": 22404,
+      "n_exceed_valid": 22404,
+      "n_boot": 500,
+      "seed": 42,
+      "margins": {
+        "pooled_r2": 0.005,
+        "spatial_r2": 0.010305996659858097,
+        "exceedance_f1": 0.02
+      },
+      "metrics": {
+        "pooled_r2": {
+          "delta": -0.06422846801275506,
+          "lb95": -0.09579707595212172,
+          "ci": [
+            -0.09579707595212172,
+            -0.0375033648401338
+          ],
+          "margin": 0.005,
+          "point_ref": 0.5539310340356145,
+          "point_new": 0.48970256602285944,
+          "n_boot_defined": 500,
+          "defined": true,
+          "non_inferior": false,
+          "superior": false
+        },
+        "spatial_r2": {
+          "delta": -0.2856584505974924,
+          "lb95": -0.4199706362799065,
+          "ci": [
+            -0.4199706362799065,
+            -0.1765126810208953
+          ],
+          "margin": 0.010305996659858097,
+          "point_ref": 0.11191002374844738,
+          "point_new": -0.173748426849045,
+          "n_boot_defined": 500,
+          "defined": true,
+          "non_inferior": false,
+          "superior": false
+        },
+        "exceedance_f1": {
+          "delta": 0.0,
+          "lb95": 0.0,
+          "ci": [
+            0.0,
+            0.0
+          ],
+          "margin": 0.02,
+          "point_ref": 0.0,
+          "point_new": 0.0,
+          "n_boot_defined": 500,
+          "defined": true,
+          "non_inferior": true,
+          "superior": false
+        }
+      },
+      "skipped": [],
+      "reasons": [
+        "non-inferiority failed on: pooled_r2, spatial_r2"
+      ]
+    },
+    "n_rows": 22404,
+    "n_days": 150
+  },
+  "margin_caps": {
+    "pooled_r2": 0.02,
+    "spatial_r2": 0.02,
+    "exceedance_f1": 0.05
+  }
+}
