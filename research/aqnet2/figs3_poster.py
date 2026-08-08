@@ -104,7 +104,7 @@ def fig13_positioning():
     ax.set_yticks([])
     ax.set_xlim(0, 0.75)
     ax.set_xlabel("R² at spatially held-out / independent sites")
-    ax.set_title("PM2.5 models under honest validation — AQNet is the only entry\n"
+    ax.set_title("PM2.5 models under honest validation: AQNet is the only entry\n"
                  "with a sealed vault confirming its estimate", fontsize=10.5)
     _save(fig, "F13_positioning.png")
 
@@ -162,7 +162,7 @@ def fig15_verdict():
     rows = []
     t2p1 = g["t2"]["1"]["__global__"]["test"]["metrics"]["pooled_r2"]
     rows.append(("Graph tier, sensor-dense regime\n(Texas: monitors + PurpleAir)",
-                 t2p1["delta"], t2p1["ci"], "significant — refused on\nspatial-axis certification"))
+                 t2p1["delta"], t2p1["ci"], "significant; refused on\nspatial-axis certification"))
     t2p2 = g["t2"]["2"]["__global__"]["test"]["metrics"]["pooled_r2"]
     rows.append(("Graph tier, monitors-only regime\n(six new states)",
                  t2p2["delta"], t2p2["ci"], "null"))
@@ -227,7 +227,7 @@ def fig16_residual_autocorr():
     for i, v in enumerate(vals):
         ax.text(i, v + 0.012, f"{v:.2f}", ha="center", fontsize=9)
     ax.set_xticks(x)
-    ax.set_xticklabels(["< 50 km", "50–150 km", "150–400 km"])
+    ax.set_xticklabels(["< 50 km", "50-150 km", "150-400 km"])
     ax.set_ylabel("neighbor correlation of held-out residuals")
     ax.set_title("The skeleton's errors are spatially organized at exactly\n"
                  "the graph tier's edge length scales", fontsize=10.5)
