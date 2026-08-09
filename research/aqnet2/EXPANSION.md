@@ -118,6 +118,27 @@ them would not be a sealed test. Registered 2026-08-09 before any v4
 fold, calibration, or model stage ran; the pre-registered gate and
 vault protocol itself is unchanged.
 
+### Registered v4 deep-tier hyperparameter search (2026-08-09, pre-launch)
+
+Owner-approved 2026-08-09 ("v4 with deep tiers and hypertuning").
+Registered before any v4 fold, calibration, or model stage ran:
+
+* Search data: strictly the inner SELECTION folds (inner_role 0-1);
+  the inner CONFIRMATION folds (2-3) score candidates; outer test rows
+  and the vault are never touched by any search iterate.
+* Selection: one config per tier chosen globally, not per outer fold:
+  the winner maximizes mean inner-confirmation spatially-blocked R2
+  across outer folds 0-2 only, so later folds never inform selection.
+* Budgets: T2 graph tier 24 configs, T3 field tier 16 configs, random
+  search over the spaces frozen in tune_deep.py at its commit; early
+  stop on inner-selection plateau. The v3 default config is always
+  candidate 0 and remains the registered fallback if the search fails
+  or ties.
+* The selected config then runs the UNCHANGED pre-registered admission
+  machinery on all outer folds: same gates, same alpha caps, same
+  coverage-pattern conditioning as v3. Tuning changes the candidate,
+  never the test.
+
 ### Registered v4 scope decisions (2026-08-09, pre-launch)
 
 * HMS-by-sensor calibration covariate: REBUILT for the v4 fleet from the
