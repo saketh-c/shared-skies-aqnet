@@ -68,37 +68,42 @@ else
   echo "recorded launch env -> $ART/launch_env.json"
 fi
 
+# AQNET2_QOS overrides every script's own QOS directive (e.g. inferno
+# when a stage's wall exceeds the embers 8h cap); unset keeps each
+# script's default. sbatch CLI flags take precedence over #SBATCH lines.
+sb () { sbatch --parsable ${AQNET2_QOS:+-q "$AQNET2_QOS"} "$@"; }
+
 chain3 () {  # chain3 <dep-jobid> <sbatch-file> -> echoes last link's jobid
   local dep=$1 file=$2
   local a b c
-  a=$(sbatch --parsable --dependency=afterok:$dep "$file")
-  b=$(sbatch --parsable --dependency=afterany:$a "$file")
-  c=$(sbatch --parsable --dependency=afterany:$b "$file")
+  a=$(sb --dependency=afterok:$dep "$file")
+  b=$(sb --dependency=afterany:$a "$file")
+  c=$(sb --dependency=afterany:$b "$file")
   echo "$c"
 }
 
-AUDIT=$(sbatch --parsable "$S/aq2-audit.sbatch")
-DATAPA=$(sbatch --parsable --dependency=afterok:$AUDIT "$S/aq2-data-pa.sbatch")
-DATA=$(sbatch --parsable --dependency=afterok:$DATAPA "$S/aq2-data.sbatch")
-STAT=$(sbatch --parsable --dependency=afterok:$DATA "$S/aq2-statics.sbatch")
-COLO=$(sbatch --parsable --dependency=afterok:$STAT "$S/aq2-colocate.sbatch")
-CAL=$(sbatch --parsable --dependency=afterok:$COLO "$S/aq2-calibrate.sbatch")
-PRI=$(sbatch --parsable --dependency=afterok:$CAL "$S/aq2-priors.sbatch")
-FEAT=$(sbatch --parsable --dependency=afterok:$PRI "$S/aq2-features.sbatch")
-SKEL=$(sbatch --parsable --dependency=afterok:$FEAT "$S/aq2-skeleton.sbatch")
+AUDIT=$(sb "$S/aq2-audit.sbatch")
+DATAPA=$(sb --dependency=afterok:$AUDIT "$S/aq2-data-pa.sbatch")
+DATA=$(sb --dependency=afterok:$DATAPA "$S/aq2-data.sbatch")
+STAT=$(sb --dependency=afterok:$DATA "$S/aq2-statics.sbatch")
+COLO=$(sb --dependency=afterok:$STAT "$S/aq2-colocate.sbatch")
+CAL=$(sb --dependency=afterok:$COLO "$S/aq2-calibrate.sbatch")
+PRI=$(sb --dependency=afterok:$CAL "$S/aq2-priors.sbatch")
+FEAT=$(sb --dependency=afterok:$PRI "$S/aq2-features.sbatch")
+SKEL=$(sb --dependency=afterok:$FEAT "$S/aq2-skeleton.sbatch")
 GPRE=$(chain3 "$SKEL" "$S/aq2-graphpre.sbatch")
 GTUNE=$(chain3 "$GPRE" "$S/aq2-graphtune.sbatch")
 GRES=$(chain3 "$GTUNE" "$S/aq2-graphres.sbatch")
 FPRE=$(chain3 "$GRES" "$S/aq2-fieldpre.sbatch")
 FTUNE=$(chain3 "$FPRE" "$S/aq2-fieldtune.sbatch")
 FRES=$(chain3 "$FTUNE" "$S/aq2-fieldres.sbatch")
-GATE=$(sbatch --parsable --dependency=afterok:$FRES "$S/aq2-gates.sbatch")
-EXC=$(sbatch --parsable --dependency=afterok:$GATE "$S/aq2-exceed.sbatch")
-UQ=$(sbatch --parsable --dependency=afterok:$EXC "$S/aq2-uq.sbatch")
-VAL=$(sbatch --parsable --dependency=afterok:$UQ "$S/aq2-validate.sbatch")
+GATE=$(sb --dependency=afterok:$FRES "$S/aq2-gates.sbatch")
+EXC=$(sb --dependency=afterok:$GATE "$S/aq2-exceed.sbatch")
+UQ=$(sb --dependency=afterok:$EXC "$S/aq2-uq.sbatch")
+VAL=$(sb --dependency=afterok:$UQ "$S/aq2-validate.sbatch")
 # export is OPTIONAL — uncomment after the configuration is frozen and the
 # vault has been consumed (serving bundle + demo surface, gpu-rtx6000):
-# EXP=$(sbatch --parsable --dependency=afterok:$VAL "$S/aq2-export.sbatch")
+# EXP=$(sb --dependency=afterok:$VAL "$S/aq2-export.sbatch")
 
 echo "submitted (domain=$AQNET2_DOMAIN pa_source=$AQNET2_PA_SOURCE" \
      "tag=${AQNET2_ARTIFACTS_TAG:-<unset>} seed_offset=$AQNET2_SEED_OFFSET):" \
