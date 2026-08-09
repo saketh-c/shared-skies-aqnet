@@ -27,7 +27,8 @@ AQNET2_DIR = os.path.dirname(_TESTS_DIR)
 # The full flat module namespace (INTERFACES.md / BUILD_NOTES assignments).
 MODULES = ("config2", "folds2", "fetchers2", "priors", "skeleton",
            "graph_res", "field_res", "compose", "calibrate", "colocate",
-           "frame2", "exceed", "uq", "validate2", "pipeline2")
+           "frame2", "exceed", "uq", "validate2", "pipeline2",
+           "pa_v4_ingest")
 
 
 def test_blocker_actually_blocks(heavy_dep_blocker):

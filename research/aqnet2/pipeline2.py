@@ -115,7 +115,8 @@ SENTINELS = {
     "data": (),
     "statics": (),           # sentinel: domain-stamped pipeline statics
                              # parquet (stage_statics; tx: unstamped name)
-    "colocate": ("colocation_pairs.parquet",),
+    "colocate": ("colocation_pairs.parquet",),   # PA-source-namespaced at
+                                                 # check time (_sentinel_path)
     "calibrate": ("pa_calibrated.parquet", "calibration_report.json"),
     "priors": ("prior_downscaler_f0.npz",),
     "features": ("frame_truth.parquet", "folds2.json",
@@ -188,13 +189,27 @@ def _force():
     return os.environ.get("FORCE") == "1"
 
 
+def _sentinel_path(name):
+    """artifact() path for a sentinel basename.
+
+    The colocation pairs artifact alone is namespaced by PA source
+    (colocate.pairs_artifact: v2 keeps the bare name, v4 gets _v4), so a
+    stale v2 artifact can never satisfy a v4 run's sentinel or vice versa;
+    every other sentinel resolves through artifact() unchanged.
+    """
+    if name == "colocation_pairs.parquet":
+        import colocate
+        return colocate.pairs_artifact()
+    return artifact(name)
+
+
 def _skip_if_done(name):
     """Exit-0-fast sentinel check. Message format is FROZEN (the sbatch
     scripts echo the identical sentence, so logs read the same either way)."""
     names = SENTINELS.get(name) or ()
     if not names or _force():
         return False
-    if all(os.path.exists(artifact(n)) for n in names):
+    if all(os.path.exists(_sentinel_path(n)) for n in names):
         _say(f"{name} outputs exist — skipping (FORCE=1 to re-run)")
         return True
     return False
@@ -728,7 +743,7 @@ def stage_audit(args):
     # 2) Colocation inventory (pure geometry, from colocate.py).
     try:
         import colocate
-        pairs_p = artifact("colocation_pairs.parquet")
+        pairs_p = colocate.pairs_artifact()
         pairs = (pd.read_parquet(pairs_p) if os.path.exists(pairs_p)
                  else colocate.build_pairs())
         report["colocation_inventory"] = colocate.pair_inventory(pairs)

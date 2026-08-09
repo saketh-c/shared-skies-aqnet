@@ -97,15 +97,25 @@ a real effect >=0.04. Either outcome is reported.
   available, so it also serves the portability claim. Fetch is free;
   admission of any resulting skill change goes through the gates like
   everything else.
-* Neighbor-feature continuous taper (replaces hard radius cutoffs; removes
-  the visible information-horizon seams in statewide maps).
+* Neighbor-feature continuous taper. Implemented 2026-08-09 as exponential
+  distance decay w = exp(-d/(r/2)) with support truncated at the registered
+  radius r, emitted as additional gated columns (env AQNET2_NBR_TAPER,
+  default off) beside the hard-cutoff originals. Truncation keeps the
+  neighbor set identical to the cutoff variant so the A/B ablation isolates
+  the weighting alone; the information-horizon seam is therefore softened
+  (weight exp(-2) at the cutoff), not fully removed. Adjudicated: support
+  parity for clean ablation outweighs full seam removal; revisit only if
+  the tapered variant admits and seams remain visible in served maps.
 
 ## Decision gates (owner)
 
-1. PurpleAir historical acquisition for 6 new states — API point spend.
-   Cost formula: sensors x months x (rows/month) x per-row point price;
-   precise quote requires one cheap sensor-index call per state bbox plus
-   current pricing. BLOCKED until owner approves the quoted number.
+1. PurpleAir historical acquisition. LESSON RECORDED 2026-08-09: PurpleAir
+   bills per FIELD VALUE, not per row. Correct cost formula: rows x
+   n_fields = points; verify against the account dashboard at one-sensor
+   scale before any volume pull. The original per-row formula here was
+   wrong by 6x and exhausted the owner's ~60M point allotment at 43% of
+   the Tier B pull. Any future acquisition is BLOCKED until the owner
+   approves a quote computed in field-values and dashboard-verified.
 2. Compute: full multistate run ~5-8x Texas CPU + GPU hours; inferno-class
    spend needs re-authorization at that scale.
 

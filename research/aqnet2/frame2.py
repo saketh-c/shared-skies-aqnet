@@ -52,6 +52,7 @@ import pandas as pd
 from scipy.spatial import cKDTree
 
 import config2
+import pa_v4_ingest
 
 # ── v1 shared BallTree neighbor implementation (single source of truth) ─────
 # Loaded by file path so this module needs no sys.path bootstrap (pipeline2
@@ -214,7 +215,11 @@ def load_pa_calibrated(path, external_paths=None, start=None, end=None):
 
     The calibrate stage is expected to carry lat/lon through; if it did not,
     coordinates are joined from the committed PA daily parquet
-    (external_paths['pa_daily'], one coordinate pair per sensor).
+    (external_paths['pa_daily'], one coordinate pair per sensor) -- or,
+    under AQNET2_PA_SOURCE=v4, from the pa_v4_daily table the calibrated
+    sensor-days were built from (pa_v4_ingest.sensor_coords), so the PA
+    covariate pool is v4-sourced end to end. The default 'v2' path is
+    untouched.
     """
     df = pd.read_parquet(path)
     df["date"] = pd.to_datetime(df["date"]).dt.normalize()
@@ -227,15 +232,23 @@ def load_pa_calibrated(path, external_paths=None, start=None, end=None):
     if "lat" not in df.columns or "lon" not in df.columns:
         ext = dict(_DEFAULT_EXTERNAL)
         ext.update(external_paths or {})
-        pa_path = ext.get("pa_daily")
-        if not pa_path or not os.path.exists(pa_path):
-            raise FileNotFoundError(
-                "pa_calibrated.parquet has no lat/lon and no pa_daily parquet "
-                "is available to join sensor coordinates from")
-        pa = pd.read_parquet(pa_path, columns=["sensor_id", "latitude", "longitude"])
-        coords = (pa.dropna(subset=["latitude", "longitude"])
-                    .drop_duplicates("sensor_id"))
-        coords = coords.rename(columns={"latitude": "lat", "longitude": "lon"})
+        if pa_v4_ingest.pa_source() == "v4":
+            # v4 archive route: sensor coordinates come from the QC'd
+            # pa_v4_daily table (registry key 'pa_v4_daily'); the committed
+            # v2 parquet is never consulted under the v4 switch.
+            coords = pa_v4_ingest.sensor_coords(ext.get("pa_v4_daily"))
+        else:
+            pa_path = ext.get("pa_daily")
+            if not pa_path or not os.path.exists(pa_path):
+                raise FileNotFoundError(
+                    "pa_calibrated.parquet has no lat/lon and no pa_daily "
+                    "parquet is available to join sensor coordinates from")
+            pa = pd.read_parquet(pa_path,
+                                 columns=["sensor_id", "latitude", "longitude"])
+            coords = (pa.dropna(subset=["latitude", "longitude"])
+                        .drop_duplicates("sensor_id"))
+            coords = coords.rename(columns={"latitude": "lat",
+                                            "longitude": "lon"})
         # calibrate writes sensor_id as str; the committed PA parquet carries
         # int64 — normalize both sides (audited pandas-3 join hazard).
         df["sensor_id"] = df["sensor_id"].astype(str)
@@ -467,6 +480,110 @@ def build_pools(calibrated_parquet=None, external_paths=None, exclude_units=(),
 
 # ── Neighbor blocks ─────────────────────────────────────────────────────────
 
+# Registered v4 neighbor-taper variant (EXPANSION.md "Registered v4 feature
+# additions"): continuous distance taper beside the hard radius cutoffs.
+# Column suffix for the tapered means; nbr_* prefix keeps them inside the
+# interpolating feature set automatically.
+TAPER_SUFFIX = "_tp"
+
+
+def nbr_taper_enabled():
+    """The registered v4 neighbor-taper switch (env AQNET2_NBR_TAPER).
+
+    Off (the default) changes NOTHING: every existing feature column is
+    byte-identical, honoring the frozen-domain contract for tx. On,
+    _neighbor_block emits ADDITIONAL distance-tapered mean columns
+    (suffix '_tp') beside every hard-cutoff nbr_pacal / nbr_frm mean;
+    existing nbr_* columns are never mutated, so an ablation A/B
+    comparison lives inside one frame. An unknown value is a loud config
+    error, never a silent default (the pa_v4_ingest.pa_source precedent).
+    """
+    val = os.environ.get("AQNET2_NBR_TAPER", "0").strip().lower()
+    if val in ("", "0", "off", "false"):
+        return False
+    if val in ("1", "on", "true"):
+        return True
+    raise SystemExit(f"[frame2] unknown AQNET2_NBR_TAPER {val!r} "
+                     f"(known: 0/off/false, 1/on/true)")
+
+
+def taper_weights(d_km, radius_km):
+    """Continuous-taper kernel: w = exp(-d / tau) with tau = radius / 2.
+
+    EXPANSION.md registers the taper but leaves the kernel form open;
+    exponential distance decay with tau = radius / 2 is the documented
+    choice here: weight 1 at the query point, exp(-2) ~ 0.135 at the hard
+    cutoff whose information-horizon seam the variant is registered to
+    soften. Strictly monotone decreasing in distance (tested).
+    """
+    tau = float(radius_km) / 2.0
+    return np.exp(-np.asarray(d_km, dtype=np.float64) / tau)
+
+
+def _taper_means(qq, pp, radii):
+    """Distance-tapered neighbor means: {radius: array aligned to qq rows}.
+
+    Mirrors the shared v1 BallTree pass (compute_neighbor_features_df):
+    same-day pool rows, leave-self-out by sensor_id, support d <= radius,
+    the SAME neighbor set per radius as the hard-cutoff mean: only the
+    weighting differs, sum(w * v) / sum(w) with w = taper_weights(d, r)
+    instead of uniform. Zero-neighbor rows stay NaN; the existing
+    count/avail indicators already describe the identical neighbor sets,
+    so no parallel indicator columns exist.
+
+    The tree is queried at the SAME radius the hard-cutoff pass always
+    uses (max(RADII_KM), even when fewer radii are kept) and masked down
+    per keep-radius in km space: the tree-level cutoff r / EARTH_R_KM is
+    not bit-equivalent to the d_km <= r mask, so querying narrower could
+    flip a one-ulp boundary neighbor and break 'tp is NaN exactly where
+    avail is 0'. Masking identical distances with the identical
+    expression keeps the invariant bit-exact.
+    """
+    from sklearn.neighbors import BallTree
+
+    max_rad = max(float(r) for r in _nf.RADII_KM) / EARTH_R_KM
+    q = qq.reset_index(drop=True)
+    p = pp.reset_index(drop=True)
+    out = {r: np.full(len(q), np.nan) for r in radii}
+    if not len(p):
+        return out
+
+    q_coords = np.radians(q[["latitude", "longitude"]].to_numpy(np.float64))
+    p_coords = np.radians(p[["latitude", "longitude"]].to_numpy(np.float64))
+    q_sid = q["sensor_id"].astype(str).to_numpy()
+    p_sid = p["sensor_id"].astype(str).to_numpy()
+    p_val = p["value"].to_numpy(np.float64)
+    pool_idx_by_date = p.groupby("date").indices
+
+    for date_val, q_pos in q.groupby("date").indices.items():
+        p_pos = pool_idx_by_date.get(date_val)
+        if p_pos is None or len(p_pos) == 0:
+            continue
+        tree = BallTree(p_coords[p_pos], metric="haversine")
+        ind, dist = tree.query_radius(q_coords[q_pos], r=max_rad,
+                                      return_distance=True)
+        for ii in range(len(q_pos)):
+            qrow = q_pos[ii]
+            local = ind[ii]
+            if len(local) == 0:
+                continue
+            gpos = p_pos[local]
+            d_km = dist[ii] * EARTH_R_KM
+            keep = p_sid[gpos] != q_sid[qrow]
+            gpos = gpos[keep]
+            d_km = d_km[keep]
+            if len(gpos) == 0:
+                continue
+            vals = p_val[gpos]
+            for r in radii:
+                m = d_km <= float(r)
+                if not m.any():
+                    continue
+                w = taper_weights(d_km[m], r)
+                out[r][qrow] = float(np.sum(w * vals[m]) / np.sum(w))
+    return out
+
+
 def _neighbor_block(q, pool, prefix, lag=0, keep_radii=(25, 50, 100),
                     with_std=False):
     """One neighbor feature block via the shared v1 BallTree implementation,
@@ -481,11 +598,17 @@ def _neighbor_block(q, pool, prefix, lag=0, keep_radii=(25, 50, 100),
     Zero-neighbor rows: mean NaN, count 0, avail 0 — the explicit
     availability indicator replaces v1's pool-grand-mean fill. The 50 km std
     is NaN with no neighbors and 0.0 for a singleton (v1 value).
+
+    Registered v4 taper variant (nbr_taper_enabled): when AQNET2_NBR_TAPER
+    is on, every radius additionally emits {prefix}_{r}km{lagsuf}_tp, the
+    distance-tapered mean over the SAME neighbor set (see _taper_means);
+    the existing columns above stay byte-identical either way.
     """
     assert not (prefix == "nbr_frm" and lag == 0), (
         "same-day FRM features are excluded by construction (DESIGN §6): "
         "serving has no same-day FRM feed")
     lagsuf = f"_lag{lag}" if lag else ""
+    taper = nbr_taper_enabled()
     n = len(q)
     out = {}
 
@@ -504,6 +627,8 @@ def _neighbor_block(q, pool, prefix, lag=0, keep_radii=(25, 50, 100),
             out[f"{prefix}_{r}km{lagsuf}"] = np.full(n, np.nan)
             out[f"{prefix}_count_{r}km{lagsuf}"] = np.zeros(n)
             out[f"{prefix}_avail_{r}km{lagsuf}"] = np.zeros(n)
+            if taper:
+                out[f"{prefix}_{r}km{lagsuf}{TAPER_SUFFIX}"] = np.full(n, np.nan)
         if with_std and 50 in keep_radii:
             out[f"{prefix}_std_50km{lagsuf}"] = np.full(n, np.nan)
         return out
@@ -523,6 +648,7 @@ def _neighbor_block(q, pool, prefix, lag=0, keep_radii=(25, 50, 100),
         "value": pool["value"].to_numpy(dtype=np.float64),
     })
     res = compute_neighbor_features_df(qq, pp, target_col="value")
+    tp = _taper_means(qq, pp, keep_radii) if taper else None
 
     for r in keep_radii:
         cnt = res[f"nbr_count_{r}km"].astype(np.float64)
@@ -530,6 +656,8 @@ def _neighbor_block(q, pool, prefix, lag=0, keep_radii=(25, 50, 100),
         out[f"{prefix}_{r}km{lagsuf}"] = mean
         out[f"{prefix}_count_{r}km{lagsuf}"] = cnt
         out[f"{prefix}_avail_{r}km{lagsuf}"] = (cnt > 0).astype(np.float64)
+        if taper:
+            out[f"{prefix}_{r}km{lagsuf}{TAPER_SUFFIX}"] = tp[r]
     if with_std and 50 in keep_radii:
         cnt50 = res["nbr_count_50km"].astype(np.float64)
         out[f"{prefix}_std_50km{lagsuf}"] = np.where(

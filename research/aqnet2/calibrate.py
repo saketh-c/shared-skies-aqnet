@@ -62,6 +62,7 @@ import pandas as pd
 
 import config2
 import colocate
+import pa_v4_ingest
 
 # ── Guarded heavy imports (v1 models_tabular style) ─────────────────────────
 try:
@@ -192,45 +193,68 @@ def load_pa_daily(pa_parquet=None, hms_parquet=None, start=None, end=None):
     fetchers2 lands AQS location-setting metadata; it exists so the learned
     form can separate urban/rural RH regimes, not as a precise land-use
     variable.
+
+    AQNET2_PA_SOURCE=v4 (and no explicit pa_parquet -- an explicit path
+    always wins, the test/ablation hook): the base sensor-day frame comes
+    from the QC'd pa_v4_daily table instead (pa_v4_ingest.py), where
+    pa_raw is a TRUE dual-channel cf_1 mean, so channel_reconstructed is
+    identically 0. The shared feature tail below (dewpoint, harmonics,
+    HMS, sensor age, window) applies in both routes, with ONE v4 delta:
+    the hms_smoke zero-fill is restricted to sensors the committed
+    product covers, and uncovered sensor-days stay NaN (announced) --
+    the v2-fleet product cannot claim tier 0 for the wider v4 fleet.
+    The default 'v2' leaves the shipped behavior byte-identical.
     """
-    path = pa_parquet or colocate.PA_PARQUET
-    pa = pd.read_parquet(path)
-    cols = {"sensor_id", "date", "pm25", "latitude", "longitude",
-            "humidity", "temperature"}
-    missing = cols - set(pa.columns)
-    if missing:
-        raise ValueError(f"PA parquet {path} missing columns {sorted(missing)}")
-
-    out = pd.DataFrame({
-        "sensor_id": pa["sensor_id"].astype(str),
-        "date": pd.to_datetime(pa["date"]).dt.normalize(),
-        "lat": pa["latitude"].astype(np.float64),
-        "lon": pa["longitude"].astype(np.float64),
-        "rh": pa["humidity"].astype(np.float64),
-        "t": pa["temperature"].astype(np.float64),
-    })
-    atm = pa["pm25"].astype(np.float64).to_numpy()
-    if "pm25_cf1" in pa.columns:
-        cf1 = pa["pm25_cf1"].astype(np.float64).to_numpy()
-        recon = ~np.isfinite(cf1) & np.isfinite(atm) & (atm >= CF1_RECON_UGM3)
-        out["pa_raw"] = np.where(np.isfinite(cf1), cf1, atm)
-        out["channel_reconstructed"] = recon.astype(np.float64)
+    use_v4 = pa_parquet is None and pa_v4_ingest.pa_source() == "v4"
+    if use_v4:
+        out = pa_v4_ingest.load_daily_for_cal()
+        _say(f"PA source v4: {len(out):,} QC-passing sensor-days "
+             f"({out['sensor_id'].nunique()} sensors)")
     else:
-        out["pa_raw"] = atm
-        out["channel_reconstructed"] = (
-            np.isfinite(atm) & (atm >= CF1_RECON_UGM3)).astype(np.float64)
+        path = pa_parquet or colocate.PA_PARQUET
+        pa = pd.read_parquet(path)
+        cols = {"sensor_id", "date", "pm25", "latitude", "longitude",
+                "humidity", "temperature"}
+        missing = cols - set(pa.columns)
+        if missing:
+            raise ValueError(
+                f"PA parquet {path} missing columns {sorted(missing)}")
 
-    if "POPULATION" in pa.columns:
-        popn = pa["POPULATION"].astype(np.float64).to_numpy()
-        out["urban"] = (popn >= URBAN_TRACT_POP).astype(np.float64)
-    else:
-        out["urban"] = 0.0
+        out = pd.DataFrame({
+            "sensor_id": pa["sensor_id"].astype(str),
+            "date": pd.to_datetime(pa["date"]).dt.normalize(),
+            "lat": pa["latitude"].astype(np.float64),
+            "lon": pa["longitude"].astype(np.float64),
+            "rh": pa["humidity"].astype(np.float64),
+            "t": pa["temperature"].astype(np.float64),
+        })
+        atm = pa["pm25"].astype(np.float64).to_numpy()
+        if "pm25_cf1" in pa.columns:
+            cf1 = pa["pm25_cf1"].astype(np.float64).to_numpy()
+            recon = (~np.isfinite(cf1) & np.isfinite(atm)
+                     & (atm >= CF1_RECON_UGM3))
+            out["pa_raw"] = np.where(np.isfinite(cf1), cf1, atm)
+            out["channel_reconstructed"] = recon.astype(np.float64)
+        else:
+            out["pa_raw"] = atm
+            out["channel_reconstructed"] = (
+                np.isfinite(atm) & (atm >= CF1_RECON_UGM3)).astype(np.float64)
+
+        if "POPULATION" in pa.columns:
+            popn = pa["POPULATION"].astype(np.float64).to_numpy()
+            out["urban"] = (popn >= URBAN_TRACT_POP).astype(np.float64)
+        else:
+            out["urban"] = 0.0
 
     out["dewpoint"] = dewpoint_c(out["t"], out["rh"])
     add_time_features(out)
 
     # HMS smoke tier by (sensor, day); absence of a smoke polygon is tier 0
-    # by that product's semantics (v1 convention), not a fill.
+    # by that product's semantics (v1 convention), not a fill. Under v4 the
+    # zero-fill is honest ONLY for sensors the product actually covers: the
+    # committed hms_smoke_by_sensor table spans the v2 fleet, so v4
+    # sensor-days of sensors absent from it stay NaN (native missing to the
+    # tree models), never a silent tier 0 through a real smoke day.
     hpath = hms_parquet or HMS_PARQUET
     if os.path.exists(hpath):
         hms = pd.read_parquet(hpath)
@@ -238,7 +262,22 @@ def load_pa_daily(pa_parquet=None, hms_parquet=None, start=None, end=None):
         hms["date"] = pd.to_datetime(hms["date"]).dt.normalize()
         out = out.merge(hms[["sensor_id", "date", "hms_smoke"]],
                         on=["sensor_id", "date"], how="left")
-        out["hms_smoke"] = out["hms_smoke"].fillna(0).astype(np.float64)
+        if use_v4:
+            covered = out["sensor_id"].isin(set(hms["sensor_id"]))
+            fill = covered & out["hms_smoke"].isna()
+            out.loc[fill, "hms_smoke"] = 0.0
+            out["hms_smoke"] = out["hms_smoke"].astype(np.float64)
+            n_nan = int(out["hms_smoke"].isna().sum())
+            if n_nan:
+                _say(f"hms_smoke: {n_nan:,} sensor-days left NaN -- their "
+                     f"sensors are absent from {os.path.basename(hpath)} "
+                     f"(no coverage claim, never tier 0)")
+        else:
+            out["hms_smoke"] = out["hms_smoke"].fillna(0).astype(np.float64)
+    elif use_v4:
+        _say(f"HMS parquet not found at {hpath} -- hms_smoke NaN everywhere "
+             "(no coverage claim for the v4 fleet)")
+        out["hms_smoke"] = np.nan
     else:
         _say(f"HMS parquet not found at {hpath} -- hms_smoke tier 0 everywhere")
         out["hms_smoke"] = 0.0
@@ -949,6 +988,21 @@ def lolo_validate(pairs, pa_daily=None, aqs_daily=None, folds=None,
     }
 
 
+def sensitivity_25km_skip():
+    """The v4 sensitivity-arm skip record, or None when the arm should run.
+
+    The pa_v4_pairs product only holds sensors gated at selection
+    frm_km <= pa_v4_ingest.PAIR_KM (10 km), so under AQNET2_PA_SOURCE=v4 a
+    25 km LOLO arm would compare near-identical pair sets -- a degenerate
+    sensitivity, not a wider one. The arm is skipped outright and the
+    report records why; the v2 default returns None and the shipped arm
+    runs unchanged.
+    """
+    if pa_v4_ingest.pa_source() == "v4":
+        return {"skipped": "pa_v4 pairs product is gated at 10 km"}
+    return None
+
+
 # ── Stage driver ────────────────────────────────────────────────────────────
 
 def _weight_by_distance_band(pa_daily, cal_var):
@@ -1000,11 +1054,11 @@ def run_calibrate(quick=False, folds_path=None):
     vault = vault_site_set(folds)
     nbr = QUICK_BOOST_ROUND if quick else NUM_BOOST_ROUND
 
-    pairs_path = config2.artifact("colocation_pairs.parquet")
+    pairs_path = colocate.pairs_artifact()
     if os.path.exists(pairs_path):
         pairs = pd.read_parquet(pairs_path)
     else:
-        _say("colocation_pairs.parquet missing -- building in-process "
+        _say(f"{os.path.basename(pairs_path)} missing -- building in-process "
              "(run the colocate stage to persist it)")
         pairs = colocate.build_pairs()
 
@@ -1027,10 +1081,15 @@ def run_calibrate(quick=False, folds_path=None):
 
     sensitivity = None
     if not quick:
-        sensitivity = lolo_validate(pairs, pa_daily, aqs_daily, folds,
-                                    max_dist_km=SENSITIVITY_PAIR_KM,
-                                    num_boost_round=nbr,
-                                    cache_tag=f"p{int(SENSITIVITY_PAIR_KM)}")
+        sensitivity = sensitivity_25km_skip()
+        if sensitivity is not None:
+            _say(f"sensitivity {int(SENSITIVITY_PAIR_KM)}km arm: SKIPPED -- "
+                 f"{sensitivity['skipped']}")
+        else:
+            sensitivity = lolo_validate(pairs, pa_daily, aqs_daily, folds,
+                                        max_dist_km=SENSITIVITY_PAIR_KM,
+                                        num_boost_round=nbr,
+                                        cache_tag=f"p{int(SENSITIVITY_PAIR_KM)}")
 
     # -- Nested refits ------------------------------------------------------
     out = pa_daily[["sensor_id", "date", "pa_raw",
@@ -1144,10 +1203,17 @@ def warm_cache(kind, shard, n_shards, quick=False, folds_path=None):
     same seeds, same code path as the assembling run; the cache guard
     (row-count + y-checksum) rejects any divergence. kinds: 'lolo10',
     'lolo25', 'nested'."""
+    if kind == "lolo25":
+        skip = sensitivity_25km_skip()
+        if skip is not None:
+            # run_calibrate skips the arm entirely under v4 -- warming its
+            # cache would be pure wasted compute.
+            _say(f"warm lolo25: SKIPPED -- {skip['skipped']}")
+            return 0
     folds = load_fold_sites(folds_path)
     vault = vault_site_set(folds)
     nbr = QUICK_BOOST_ROUND if quick else NUM_BOOST_ROUND
-    pairs_path = config2.artifact("colocation_pairs.parquet")
+    pairs_path = colocate.pairs_artifact()
     pairs = (pd.read_parquet(pairs_path) if os.path.exists(pairs_path)
              else colocate.build_pairs())
     start, end = (QUICK_START, QUICK_END) if quick else (None, None)

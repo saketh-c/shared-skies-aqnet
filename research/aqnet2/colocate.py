@@ -13,6 +13,13 @@ cheap, lets calibrate.py run its 25 km sensitivity arm without re-scanning
 the raw parquets, and gives the audit stage the full distance histogram it
 needs for the pair-inventory check.
 
+AQNET2_PA_SOURCE=v4: the persisted artifact is namespaced per PA source
+(pairs_artifact: colocation_pairs_v4.parquet) so a stale v2 table is never
+consumed by a v4 run or vice versa, and the pair rows derive from the
+pa_v4_pairs product (build_pairs), which is gated at 10 km -- calibrate
+skips its 25 km sensitivity arm under v4 for exactly that reason. The
+default 'v2' keeps everything here byte-identical.
+
 Deliberately fold-agnostic: vault exclusion is NOT applied here. The vault
 airlock lives in calibrate.py (which consumes folds2.json), so that this
 inventory stays a pure geometric fact about the committed data and cannot go
@@ -30,6 +37,7 @@ import numpy as np
 import pandas as pd
 
 import config2
+import pa_v4_ingest
 
 # ── Input paths (committed v1 data; see diag_data.md for schemas) ──────────
 PA_PARQUET = os.path.join(config2.PIPELINE_DIR, "purpleair_full_dataset.parquet")
@@ -114,6 +122,23 @@ def load_site_index(aqs_parquet=None):
 
 # ── Pair table ──────────────────────────────────────────────────────────────
 
+def pairs_artifact():
+    """The persisted colocation-pairs artifact path for the active PA source.
+
+    The v2 default keeps the shipped bare name byte-identically; under
+    AQNET2_PA_SOURCE=v4 the artifact is namespaced per source
+    (colocation_pairs_v4.parquet), mirroring the domain-stamp precedent
+    (config2.ARTIFACTS_DIR namespaces per domain): a stale v2 artifact is
+    never consumed by a v4 run and vice versa. Every consumer of the
+    persisted table (colocate.main, calibrate, the pipeline2 audit and
+    sentinel check) resolves the path here.
+    """
+    base = "colocation_pairs.parquet"
+    if pa_v4_ingest.pa_source() == "v4":
+        base = "colocation_pairs_v4.parquet"
+    return config2.artifact(base)
+
+
 def build_pairs(pa_parquet=None, aqs_parquet=None, max_dist_km=MAX_PAIR_KM):
     """All (site, sensor) pairs within max_dist_km, with shared-day counts.
 
@@ -121,7 +146,16 @@ def build_pairs(pa_parquet=None, aqs_parquet=None, max_dist_km=MAX_PAIR_KM):
     by (site_id, dist_km). n_shared_days counts calendar days on which BOTH
     the AQS site and the PA sensor have an observation -- the number of
     usable pair-days before any QC.
+
+    AQNET2_PA_SOURCE=v4 (and no explicit parquet override -- an explicit
+    argument always wins, the test/ablation hook): the same-shaped table
+    derives from the pa_v4_pairs product instead (pa_v4_ingest.py), whose
+    day counts are QC-passing pair-days. The default 'v2' leaves the
+    shipped behavior below untouched.
     """
+    if pa_parquet is None and aqs_parquet is None \
+            and pa_v4_ingest.pa_source() == "v4":
+        return pa_v4_ingest.load_pairs_table(max_dist_km=max_dist_km)
     site_loc, site_dates = load_site_index(aqs_parquet)
     sens_loc, sens_dates = load_sensor_index(pa_parquet)
 
@@ -164,7 +198,7 @@ def main(argv=None):
     ap.add_argument("--aqs-parquet", default=None)
     args = ap.parse_args(argv)
 
-    dest = config2.artifact("colocation_pairs.parquet")
+    dest = pairs_artifact()
     if os.path.exists(dest) and os.environ.get("FORCE") != "1":
         print(f"[aqnet2] colocate: {dest} exists (FORCE=1 to rebuild) -- skip")
         return 0
