@@ -10,6 +10,22 @@ Every number in this document was computed by the pipeline and read from `resear
 - **Serving parity:** True (post_t4_replay)
 - **Monotone audit:** True
 
+## Correction (2026-08-09): T3 field-tier input was Texas-extent
+
+A post-run audit found that the field tier's raster stack was loaded
+from a cache file whose name embeds window and grid but not domain.
+The v2 Texas run wrote that file hours before the v3 field stage ran,
+so T3 was pre-trained and evaluated on rasters covering only Texas
+while the rest of the v3 chain used the full seven-state domain. The
+procedural outcome stands: T3 was refused admission and contributes
+nothing to any shipped v3 number in this document. What this run can
+NOT support is any scientific claim about the field tier's value at
+WEST7 scale or density; its null result here reflects a broken input,
+not the tier. Root cause is fixed (cache names are domain-stamped as
+of pipeline commit history 2026-08-09) and the v4 chain re-measures
+T3 on a correct full-domain stack. T2's result is unaffected: the
+graph tier does not read this stack.
+
 ## P1 — Held-out AQS sites (outer folds)
 
 | Arm | R² | RMSE | MAE | Bias |

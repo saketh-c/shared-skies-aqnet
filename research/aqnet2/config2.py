@@ -67,7 +67,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 AQNET2_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(AQNET2_DIR, "data")
 CACHE_DIR = os.path.join(AQNET2_DIR, "cache")
-ARTIFACTS_DIR = os.path.join(AQNET2_DIR, "artifacts", DOMAIN_SPEC["artifacts"])
+# AQNET2_ARTIFACTS_TAG namespaces a run's artifacts away from the domain
+# default so a new chain (e.g. v4) can never overwrite a shipped bundle.
+# Unset = the frozen per-domain default.
+_ART_TAG = os.environ.get("AQNET2_ARTIFACTS_TAG", "").strip()
+if _ART_TAG and not all(c.isalnum() or c in "_-" for c in _ART_TAG):
+    raise SystemExit(f"[config2] bad AQNET2_ARTIFACTS_TAG {_ART_TAG!r} "
+                     "(letters, digits, _ and - only)")
+ARTIFACTS_DIR = os.path.join(AQNET2_DIR, "artifacts",
+                             _ART_TAG or DOMAIN_SPEC["artifacts"])
 V1_DIR = os.path.join(os.path.dirname(AQNET2_DIR), "aqnet")
 DL_DIR = os.path.join(os.path.dirname(AQNET2_DIR), "deeplearning")
 PIPELINE_DIR = os.path.join(ROOT, "pipeline")
@@ -145,7 +153,18 @@ VAULT_DATE_START = "2026-01-01"  # vault period: all data from here onward
 OUTER_N_FOLDS = int(DOMAIN_SPEC["outer_n_folds"])  # spatially-blocked outer
 INNER_N_FOLDS = 4           # folds 0-1 selection, 2-3 confirmation
 LOSO_N_FOLDS = 10           # unit-grouped LOSO nested within each outer fold
-SEED = 42
+# AQNET2_SEED_OFFSET shifts every seeded draw for a new run generation.
+# The v3 vault sites are revealed (their one-shot numbers are published),
+# so a rerun at the same seed would reproduce the same "sealed" vault; a
+# registered nonzero offset draws fresh folds and a fresh vault. Unset =
+# 0 = frozen behavior.
+_SEED_OFF = os.environ.get("AQNET2_SEED_OFFSET", "0").strip() or "0"
+try:
+    _SEED_OFF = int(_SEED_OFF)
+except ValueError:
+    raise SystemExit(f"[config2] bad AQNET2_SEED_OFFSET {_SEED_OFF!r} "
+                     "(integer required)")
+SEED = 42 + _SEED_OFF
 
 # ── Feature contract ────────────────────────────────────────────────────────
 

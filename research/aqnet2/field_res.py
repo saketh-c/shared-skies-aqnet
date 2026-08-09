@@ -437,13 +437,21 @@ def _stack_window(quick):
 
 
 def stack2_cache_path(quick, grid_deg, start, end):
-    """Cache filename embeds window + grid + correction (v1 precedent: a
-    raw stack must never be reused for another config — audit §4)."""
+    """Cache filename embeds domain + window + grid + correction (v1
+    precedent: a raw stack must never be reused for another config).
+
+    The domain stamp exists because tx and west7 share window and grid:
+    without it the v3 west7 field stage silently reused the v2 Texas
+    stack (found 2026-08-09; the v3 T3 verdict is caveated in results).
+    tx keeps the bare name (frozen contract; its existing cache stays
+    valid), every other domain gets a _{domain} suffix.
+    """
     tag = "quick" if quick else "full"
     s = pd.Timestamp(start).strftime("%Y%m%d")
     e = pd.Timestamp(end).strftime("%Y%m%d")
+    dom = "" if config2.DOMAIN == "tx" else f"_{config2.DOMAIN}"
     return os.path.join(config2.CACHE_DIR,
-                        f"stack2_{tag}_{grid_deg:g}deg_raw_{s}_{e}.npz")
+                        f"stack2_{tag}{dom}_{grid_deg:g}deg_raw_{s}_{e}.npz")
 
 
 def load_or_build_stack2(quick=False, grid_deg=None, cache_path=None):

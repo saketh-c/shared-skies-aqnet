@@ -107,6 +107,32 @@ a real effect >=0.04. Either outcome is reported.
   parity for clean ablation outweighs full seam removal; revisit only if
   the tapered variant admits and seams remain visible in served maps.
 
+## Registered v4 run configuration
+
+The v4 chain runs with AQNET2_DOMAIN=west7, AQNET2_PA_SOURCE=v4,
+AQNET2_ARTIFACTS_TAG=v4, AQNET2_SEED_OFFSET=4000. The artifacts tag
+gives v4 its own bundle directory so the shipped v3 bundle survives on
+the cluster; the seed offset draws fresh outer folds and a fresh
+one-shot vault, because the v3 vault sites are revealed and reusing
+them would not be a sealed test. Registered 2026-08-09 before any v4
+fold, calibration, or model stage ran; the pre-registered gate and
+vault protocol itself is unchanged.
+
+### Registered v4 scope decisions (2026-08-09, pre-launch)
+
+* HMS-by-sensor calibration covariate: REBUILT for the v4 fleet from the
+  hms_grid product rather than accepted as NaN, because smoke days are
+  where calibration error matters most; the v2 fleet's committed table
+  stays untouched for frozen runs.
+* T3 obs channel: the field tier's masked-modeling obs raster still
+  draws from the v2-era PA dataset in v4.0 (the v1 stack builder is out
+  of scope); T3 is admission-gated and has never admitted, so this is
+  accepted and disclosed. Revisit before any v4.x rerun if T3 nears
+  admission.
+* v4 fleet spatial envelope: load_daily applies an announced bbox filter
+  so an out-of-domain sensor can never silently absorb bbox-edge
+  covariates.
+
 ## Decision gates (owner)
 
 1. PurpleAir historical acquisition. LESSON RECORDED 2026-08-09: PurpleAir
