@@ -89,6 +89,17 @@ a real effect >=0.04. Either outcome is reported.
   west7 states (loud omission, never a Texas fill) until domain-wide
   fetchers are written; the T0 prior runs on its remaining streams.
 
+## Registered v4 feature additions (require refit + re-adjudication)
+
+* EDGAR v8 gridded sectoral emissions (0.1 deg, global, public): adds
+  area-source emission covariates (traffic, residential, industry) beside
+  the existing NEI point sources and road-density proxies. Globally
+  available, so it also serves the portability claim. Fetch is free;
+  admission of any resulting skill change goes through the gates like
+  everything else.
+* Neighbor-feature continuous taper (replaces hard radius cutoffs; removes
+  the visible information-horizon seams in statewide maps).
+
 ## Decision gates (owner)
 
 1. PurpleAir historical acquisition for 6 new states — API point spend.
