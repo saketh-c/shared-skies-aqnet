@@ -36,6 +36,18 @@ What v2 adds (audit 06-pace.md is the ground truth for why):
                         (lat, lon, date). Both collections share the native
                         0.5 x 0.625 grid; frame2 joins nearest-cell so a
                         one-sided merge is still usable.
+  fetch_geoscf_domain   GEOS-CF surface PM2.5 daily means over the DOMAIN
+                        bbox (config2.TX_BBOX), month-chunked to a
+                        domain-stamped cache and a domain-stamped final
+                        [lat, lon, date, geoscf_pm25]. The endpoint routing
+                        (assim v1 tree before GEOSCF_V2_START, ana v2 tree
+                        after) and the netCDF4-then-pydap open with its
+                        hand-rebuilt GrADS time axis are v1's committed
+                        'union GEOS-CF fix', reused via the bridge; only
+                        the bbox clip is re-ported, because v1's is frozen
+                        to Texas. Run for NON-tx domains only: tx keeps the
+                        committed v1 Texas parquet (write_external_paths
+                        candidates unchanged). OPTIONAL: warn-and-continue.
   fetch_hms_grid        NOAA HMS smoke polygons -> 0.1-degree cell raster
                         (pyshp + matplotlib.path, no GDAL). frame2.hms_join
                         treats a missing (cell, day) INSIDE the coverage
@@ -48,6 +60,19 @@ What v2 adds (audit 06-pace.md is the ground truth for why):
                         year-keyed, population-density proxy, NLCD
                         impervious attempt). Each sub-source is independent:
                         one failing leaves its columns absent, never filled.
+  fetch_edgar_domain    EDGAR v8.1 (EU JRC) global 0.1-degree ANNUAL
+                        sector-aggregated (TOTALS) emission gridmaps,
+                        PM2.5 + NOx + SO2 for the latest published year,
+                        bbox-subset to a domain-stamped STATIC parquet
+                        [lat, lon, edgar_pm25, edgar_nox, edgar_so2]
+                        (tonnes per cell per year). A NEW v4 feature
+                        source registered under the 'edgar' registry key
+                        for ALL domains, tx included; no shipped consumer
+                        reads the key, so adding it changes no current
+                        pipeline behavior. Pollutants are independent: a
+                        failing one leaves its column absent (sidecar,
+                        retried next call), never filled. OPTIONAL:
+                        warn-and-continue.
   write_external_paths  the data-stage output registry frame2 consumes
                         (artifact external_paths.json); only keys whose
                         files exist are written.
@@ -187,6 +212,23 @@ KM_PER_DEG_LON_EQ = 111.320
 # so the decision artifact does not import calibrate's heavy chain.
 CF1_RECON_UGM3 = 20.0
 CHANNEL_RECON_VAR_FACTOR = 4.0
+
+# EDGAR v8.1 air-pollutant annual gridmaps (EU JRC, public, no auth):
+# https://edgar.jrc.ec.europa.eu/dataset_ap81. One zip per (pollutant,
+# year) under the JRC open-data tree, ~16 MB each, holding a single global
+# 0.1-degree netCDF (member v8.1_FT2022_AP_{poll}_{year}_TOTALS_emi.nc,
+# variable `emissions`, units Tonnes per cell per year, cell centers
+# -89.95..89.95 / -179.95..179.95). Pattern and content verified against
+# the live directory listing and the PM2.5 2022 file on 2026-08-09. The
+# release is frozen at FT2022 ("fast track" through 2022), so the latest
+# year is a constant, not a probe: a newer year implies a new release id
+# and therefore a new URL, never a new value of {year} here.
+EDGAR_URL = ("https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/EDGAR/"
+             "datasets/v81_FT2022_AP_new/{poll}/TOTALS/emi_nc/"
+             "v8.1_FT2022_AP_{poll}_{year}_TOTALS_emi_nc.zip")
+EDGAR_YEAR = 2022
+EDGAR_POLLUTANTS = [("PM2.5", "edgar_pm25"), ("NOx", "edgar_nox"),
+                    ("SO2", "edgar_so2")]
 
 
 def _say(msg):
@@ -850,6 +892,163 @@ def fetch_merra2_combined(start, end, dest=None):
     _atomic_parquet(out, dest)
     _say(f"merra2-combined: saved {dest}: {len(out):,} cell-days, "
          f"{len(out.columns) - 3} value columns")
+    return dest
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 2b. GEOS-CF surface PM2.5 over the domain bbox (OPTIONAL, non-tx)
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _geoscf_domain_bbox(da):
+    """Clip a GEOS-CF DataArray to config2.TX_BBOX (THE DOMAIN bbox),
+    tolerating either latitude order.
+
+    Port of v1 _bbox_slice, which is hardwired to v1 config.TX_BBOX; that
+    box is frozen (widening it would poison v1's own geoscf_pm25_* cache
+    namespace), so the domain clip must resolve from config2 here. Same
+    either-order tolerance as v1: the GrADS trees serve ascending latitude
+    today, but against a descending axis an ascending slice silently yields
+    an empty subset, hence the size-0 re-probe with reversed bounds."""
+    bb = config2.TX_BBOX
+    sub = da.sel(lat=slice(bb["lat_min"], bb["lat_max"]),
+                 lon=slice(bb["lon_min"], bb["lon_max"]))
+    if sub.sizes.get("lat", 0) == 0:      # descending latitude axis
+        sub = da.sel(lat=slice(bb["lat_max"], bb["lat_min"]),
+                     lon=slice(bb["lon_min"], bb["lon_max"]))
+    return sub
+
+
+def _geoscf_domain_month(lo, hi):
+    """One month of GEOS-CF daily-mean surface PM2.5 over the domain, or
+    raise (a partial month must never be baked into a chunk).
+
+    Everything except the clip is v1's committed 'union GEOS-CF fix',
+    reused via the bridge rather than reimplemented:
+
+      * dx._geoscf_url routes the month to the assim v1 chm_tavg_1hr tree
+        before config.GEOSCF_V2_START and to the v2 ana tree after it (the
+        v1 collection stops at 2026-01-02 and the v2 collection is a
+        rolling ~1-year window, so neither covers the full window alone);
+      * dx._open_geoscf prefers the netCDF4 engine but VALIDATES its time
+        axis (netCDF4 can open the GrADS server and still mis-decode the
+        "days since 1-1-1" axis onto a garbage scale) and falls back to
+        pydap pinned to dap2://, rebuilding the axis by hand from GrADS
+        ordinals;
+      * dx._geoscf_var probes pm25_rh35_gcc / pm25_rh35 and friends, since
+        the two trees publish disjoint variable names.
+
+    Hourly fields are clipped to the domain bbox, sliced to the month, and
+    reduced to daily means on the native 0.25-degree grid; only the subset
+    crosses the wire. Rows whose value is non-finite are dropped (loud
+    omission: an absent cell-day stays absent, never filled)."""
+    dx = _v1()
+    ds = dx._open_geoscf(dx._geoscf_url(lo))
+    try:
+        da = ds[dx._geoscf_var(ds)]
+        if "lev" in da.dims:
+            da = da.isel(lev=0)
+        da = _geoscf_domain_bbox(da).sel(time=slice(lo, hi))
+        daily = da.resample(time="1D").mean(skipna=True).load()
+    finally:
+        ds.close()
+    df = daily.rename("geoscf_pm25").to_dataframe().reset_index()
+    df = df.rename(columns={"time": "date"})
+    df["date"] = (pd.to_datetime(df["date"]).dt.normalize()
+                  .astype("datetime64[ns]"))
+    df = df[np.isfinite(df["geoscf_pm25"])]
+    return df[["lat", "lon", "date", "geoscf_pm25"]].reset_index(drop=True)
+
+
+def fetch_geoscf_domain(start, end, dest=None):
+    """GEOS-CF surface PM2.5 daily means over the domain bbox -> path or
+    None.
+
+    The domain-wide sibling of v1 fetch_geoscf_pm25 (which stays Texas-only
+    and untouched; tx runs keep registering its committed parquet from
+    V1_DIR/data). Month-chunked under the domain-stamped _dcache("geoscf")
+    dir with bare geoscf_{YYYYMM}.parquet chunk names (the merra2_slv
+    precedent: bbox-clipped content in a shared cache/ tree must live in a
+    stamped DIRECTORY, or a wider-domain reassembly would silently reuse
+    Texas-bbox chunks); an existing chunk file is trusted and skipped, so
+    an interrupted pull resumes where it stopped. Each missing month gets
+    3 attempts with backoff, v1 style; a failing month lands in the
+    {dest}.failed.json sidecar and is retried first on the next call, never
+    baked in silently. All writes are atomic (tmp + os.replace).
+
+    The final is DATA_DIR/{_dstem('geoscf_pm25')}_{window}.parquet (west7:
+    geoscf_pm25_west7_YYYYMMDD_YYYYMMDD.parquet), exactly the pattern
+    write_external_paths already globs for the domain's 'geoscf' key; an
+    existing final is trusted only when its sidecar is clean and its dates
+    cover the window, otherwise it is reassembled from the month chunks,
+    which are the cache of record. Auth is not needed for the public GrADS
+    server; ~/.netrc and ~/.dodsrc on the cluster are harmless to it.
+
+    Output columns: [lat, lon, date, geoscf_pm25] (ug/m3) on the native
+    0.25-degree grid. OPTIONAL source: when no month can be fetched this
+    returns None instead of raising (v1 raises; here downstream geoscf_*
+    features stay NaN and run_data continues)."""
+    dx = _v1()
+    dest = dest or os.path.join(
+        config2.DATA_DIR,
+        f"{_dstem('geoscf_pm25')}_{dx._window_tag(start, end)}.parquet")
+    prev_failed = []
+    if os.path.exists(dest):
+        prev_failed = dx._read_failed_months(dest)
+        if prev_failed:
+            _say(f"geoscf: cached {dest} is missing month(s) {prev_failed} "
+                 "-- retrying them first")
+        elif dx._covers_window(dest, start, end):
+            _say(f"geoscf: using cached {dest}")
+            return dest
+        else:
+            _say(f"geoscf: cached {dest} does not cover {start}..{end} -- "
+                 "reassembling from month chunks")
+    chunk_dir = _dcache("geoscf")   # bbox-clipped chunks: domain-stamped
+
+    frames, failed = [], []
+    edges = dx._retry_failed_first(dx._month_edges(start, end), prev_failed)
+    for m, (lo, hi) in enumerate(edges):
+        tag = lo.strftime("%Y%m")
+        cp = os.path.join(chunk_dir, f"geoscf_{tag}.parquet")
+        if os.path.exists(cp):
+            frames.append(pd.read_parquet(cp))
+            continue
+        df = None
+        for attempt in range(3):
+            try:
+                df = _geoscf_domain_month(lo, hi)
+                break
+            except Exception as e:
+                print(f"  geoscf {tag} attempt {attempt + 1}/3: {e}")
+                time.sleep(15 * (attempt + 1))
+        if df is None:
+            failed.append(tag)
+            continue
+        _atomic_parquet(df, cp)   # atomic: a preempted chunk must never be trusted
+        frames.append(df)
+        _say(f"geoscf {tag}: {len(df):,} cell-days "
+             f"({m + 1}/{len(edges)} months)")
+
+    if failed:
+        _say(f"geoscf: {len(failed)} month(s) failed and were skipped: "
+             f"{failed} (recorded in the sidecar; retried first next call)")
+    if not frames:
+        _say("geoscf: no months could be fetched -- continuing without "
+             "GEOS-CF (geoscf_pm25 stays NaN)")
+        return None
+
+    out = pd.concat(frames, ignore_index=True)
+    out = out[(out["date"] >= pd.Timestamp(start))
+              & (out["date"] <= pd.Timestamp(end))]
+    if not len(out):
+        _say("geoscf: assembled chunks hold no rows inside the window -- "
+             "no final written (geoscf_pm25 stays NaN)")
+        return None
+    out = out.sort_values(["date", "lat", "lon"]).reset_index(drop=True)
+    _atomic_parquet(out, dest)
+    dx._write_failed_months(dest, failed)
+    _say(f"geoscf: saved {dest}: {len(out):,} cell-days, "
+         f"{out['date'].min().date()} .. {out['date'].max().date()}")
     return dest
 
 
@@ -1626,6 +1825,162 @@ def fetch_statics(quick=False, dest=None):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# 4b. EDGAR v8.1 annual emission gridmaps -> domain static parquet (OPTIONAL)
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _edgar_cache():
+    """Shared unstamped CACHE_DIR subdir for EDGAR raw downloads (created).
+
+    The per-(pollutant, year) zips and the .nc members extracted beside
+    them are GLOBAL 0.1-degree grids, so the raw cache is deliberately
+    shared across domains (the statics/HMS raw precedent: content that
+    does not depend on the bbox lives unstamped); only the bbox-subset
+    final under DATA_DIR carries the domain stamp."""
+    d = os.path.join(config2.CACHE_DIR, "edgar")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _edgar_pollutant_frame(poll, col, year, cache):
+    """One EDGAR TOTALS pollutant, bbox-subset -> DataFrame [lat, lon, col].
+
+    Downloads the per-year zip (resumable: an existing zip, and separately
+    an already-extracted .nc, are trusted and skipped), extracts the single
+    .nc member atomically (tmp + os.replace) and reads it with
+    xarray+netcdf4. The `emissions` variable is tonnes of substance per
+    0.1-degree cell per year on a global grid (verified 2026-08-09 on the
+    v8.1 PM2.5 2022 file); longitudes are normalized to [-180, 180) and
+    both axes sorted ascending before the bbox .sel, guarding against a
+    future vintage shipping 0..360. Raises on any failure: the caller
+    records the pollutant in the sidecar and leaves its column ABSENT,
+    never filled."""
+    import xarray as xr
+    url = EDGAR_URL.format(poll=poll, year=year)
+    zdest = os.path.join(cache, os.path.basename(url))
+    ncdest = os.path.splitext(zdest)[0] + ".nc"
+    if not os.path.exists(ncdest):
+        zp, status = _probe_download(url, zdest)
+        if status != "ok":
+            raise RuntimeError(f"download {status} for {url}")
+        with zipfile.ZipFile(zp) as zf:
+            members = [n for n in zf.namelist() if n.lower().endswith(".nc")]
+            if len(members) != 1:
+                raise RuntimeError(
+                    f"{os.path.basename(zp)} holds {len(members)} .nc "
+                    "members (expected exactly 1)")
+            tmp = ncdest + ".tmp"
+            with zf.open(members[0]) as src, open(tmp, "wb") as out:
+                while True:
+                    chunk = src.read(1 << 20)
+                    if not chunk:
+                        break
+                    out.write(chunk)
+            os.replace(tmp, ncdest)
+
+    bb = config2.TX_BBOX
+    ds = xr.open_dataset(ncdest, engine="netcdf4")
+    try:
+        if "emissions" in ds.data_vars:
+            da = ds["emissions"]
+        elif len(ds.data_vars) == 1:
+            da = ds[list(ds.data_vars)[0]]
+        else:
+            raise RuntimeError(
+                f"no 'emissions' variable in {os.path.basename(ncdest)} "
+                f"(data_vars: {sorted(ds.data_vars)})")
+        if float(np.asarray(da["lon"]).max()) > 180.0:
+            da = da.assign_coords(lon=((da["lon"] + 180.0) % 360.0) - 180.0)
+        da = da.sortby("lat").sortby("lon")
+        sub = da.sel(lat=slice(bb["lat_min"], bb["lat_max"]),
+                     lon=slice(bb["lon_min"], bb["lon_max"])).load()
+    finally:
+        ds.close()
+    df = sub.to_dataframe(name=col).reset_index()[["lat", "lon", col]]
+    if not len(df):
+        raise RuntimeError(f"bbox subset of {poll} {year} is empty")
+    # Round the native centers so the per-pollutant merge on (lat, lon) is
+    # exact (the merra2_combined float-jitter precedent).
+    df["lat"] = np.round(df["lat"].astype(np.float64), 5)
+    df["lon"] = np.round(df["lon"].astype(np.float64), 5)
+    df[col] = df[col].astype(np.float64)
+    _say(f"edgar {poll} {year}: {len(df):,} cells, "
+         f"{float(np.nansum(df[col].to_numpy())):,.0f} t/yr in the "
+         "domain bbox")
+    return df
+
+
+def fetch_edgar_domain(year=None, dest=None):
+    """EDGAR v8.1 annual TOTALS emissions over the domain bbox -> path/None.
+
+    EU JRC EDGAR v8.1 air-pollutant release (public, no auth): global
+    0.1-degree ANNUAL sector-aggregated (TOTALS) emission gridmaps, one
+    ~16 MB netCDF zip per (pollutant, year) at EDGAR_URL (pattern verified
+    against the live JRC open-data directory listing, 2026-08-09). PM2.5,
+    NOx and SO2 are fetched for the latest published year (EDGAR_YEAR =
+    2022; the release is frozen at FT2022, so newer data would be a new
+    release id, not a larger {year}), each bbox-subset to config2.TX_BBOX
+    and outer-merged on the rounded native cell centers, which the three
+    files share by construction.
+
+    A NEW v4 feature source, registered as the 'edgar' key in
+    write_external_paths for ALL domains including tx: no shipped consumer
+    reads the key, so adding it changes no current pipeline behavior and
+    the frozen v2 run stays reproducible. Pollutants are INDEPENDENT: a
+    failing one leaves its column absent (never filled), is announced, and
+    is recorded in the {dest}.failed.json sidecar so a partial parquet is
+    never mistaken for a complete one and the missing pollutant is retried
+    on the next call; when no pollutant can be fetched this returns None
+    (OPTIONAL source: run_data warns and continues).
+
+    Static product, so the final is year-stamped rather than
+    window-stamped: DATA_DIR/{_dstem('edgar_v81')}_{year}.parquet (tx:
+    edgar_v81_2022.parquet, west7: edgar_v81_west7_2022.parquet); the
+    stamped stem plus the `_[0-9]*` glob tail keeps each domain's registry
+    from ever admitting the other's file. Raw zips live in the shared
+    cache/edgar dir because the grids are global. Output columns: [lat,
+    lon, edgar_pm25, edgar_nox, edgar_so2] in tonnes of substance per cell
+    per year, minus any pollutant that failed. A zero is EDGAR's own "no
+    emission in this cell", a fact, never a fill."""
+    dx = _v1()
+    year = int(year or EDGAR_YEAR)
+    dest = dest or os.path.join(
+        config2.DATA_DIR, f"{_dstem('edgar_v81')}_{year}.parquet")
+    prev_failed = dx._read_failed_months(dest)
+    if os.path.exists(dest) and not prev_failed \
+            and os.environ.get("FORCE") != "1":
+        _say(f"edgar: using cached {dest}")
+        return dest
+    if prev_failed:
+        _say(f"edgar: cached {dest} is missing column(s) {prev_failed} -- "
+             "retrying them (already-cached pollutants reassemble from the "
+             "shared raw cache)")
+    cache = _edgar_cache()
+
+    frames, failed = [], []
+    for poll, col in EDGAR_POLLUTANTS:
+        try:
+            frames.append(_edgar_pollutant_frame(poll, col, year, cache))
+        except Exception as e:
+            _say(f"edgar {poll} {year}: SKIPPED -- {e} ({col} stays "
+                 "absent, never filled)")
+            failed.append(col)
+    if not frames:
+        _say("edgar: no pollutant could be fetched -- nothing written "
+             "(edgar_* features stay absent)")
+        return None
+
+    out = frames[0]
+    for df in frames[1:]:
+        out = out.merge(df, on=["lat", "lon"], how="outer")
+    out = out.sort_values(["lat", "lon"]).reset_index(drop=True)
+    _atomic_parquet(out, dest)
+    dx._write_failed_months(dest, failed)
+    _say(f"edgar: saved {dest}: {len(out):,} cells, columns "
+         f"{[c for c in out.columns if c not in ('lat', 'lon')]}")
+    return dest
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # 5. external_paths.json + data-pa decision artifact
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -1665,8 +2020,9 @@ def _best_glob(patterns, require_rows=False):
 def write_external_paths():
     """Write artifact external_paths.json -> its path (the frame2 registry).
 
-    Keys {aqs, pa_daily, geoscf, merra2, cams, met_extra, hms_grid} (plus
-    `statics` for non-tx domains), each included ONLY when its file exists
+    Keys {aqs, pa_daily, geoscf, merra2, cams, met_extra, hms_grid, edgar}
+    (plus `statics` for non-tx domains), each included ONLY when its file
+    exists
     (frame2 skips missing keys loudly; an absent key is honest degradation,
     a dead path is a crash). merra2 prefers the combined parquet, then
     aerosol-only, then SLV-only.
@@ -1680,7 +2036,15 @@ def write_external_paths():
     nearest-cell joins carry no distance cap, so registering a Texas-bbox
     file for a wider domain would silently smear Texas values across it.
     pa_daily stays unstamped by design (EXPANSION Phase 1: the TX archive
-    is the PA source for every domain, config2.PA_STATE_FIPS)."""
+    is the PA source for every domain, config2.PA_STATE_FIPS). Under a
+    non-tx domain the 'geoscf' key resolves to fetch_geoscf_domain's
+    domain-stamped final (geoscf_pm25_{domain}_{window}.parquet); under tx
+    the v1 Texas candidates keep first priority, unchanged.
+
+    `edgar` (v4 feature source) is registered for EVERY domain, tx
+    included: its final is domain-stamped by fetch_edgar_domain, and the
+    key is NEW, so no shipped consumer reads it and the current pipeline
+    behavior is unchanged by its presence."""
     v1_data = os.path.join(config2.V1_DIR, "data")
     tx = config2.DOMAIN == "tx"
     geoscf_pats = [os.path.join(config2.DATA_DIR,
@@ -1712,6 +2076,9 @@ def write_external_paths():
             [os.path.join(config2.DATA_DIR,
                           _dstem("hms_grid") + "_[0-9]*.parquet")],
             require_rows=True),
+        "edgar": _best_glob(
+            [os.path.join(config2.DATA_DIR,
+                          _dstem("edgar_v81") + "_[0-9]*.parquet")]),
     }
     if not tx:
         # frame2's default statics path is the committed Texas lattice;
@@ -1796,8 +2163,16 @@ def run_data_pa():
 
 
 def run_data(quick=False, start=None, end=None, years=None):
-    """Stage `data`: AQS v2 (REQUIRED) + SLV/combined MERRA-2 + HMS grid
-    (OPTIONAL, warn-and-continue) + the external_paths.json registry."""
+    """Stage `data`: AQS v2 (REQUIRED) + SLV/combined MERRA-2 + HMS grid +
+    EDGAR v8.1 annual emissions (OPTIONAL, warn-and-continue) + the
+    external_paths.json registry. Non-tx domains also run
+    fetch_geoscf_domain (OPTIONAL, never REQUIRED): tx keeps registering
+    the committed v1 Texas GEOS-CF parquet instead, so the shipped v2
+    run's fetch sequence stays byte-identical. EDGAR runs for EVERY domain
+    (it is a new v4 feature source with a new registry key no shipped
+    consumer reads), and on an already-complete tx setup the stage
+    sentinel above still short-circuits first, so nothing about the
+    frozen run re-executes without FORCE=1."""
     sentinel = config2.artifact("external_paths.json")
     have_aqs = _best_glob(
         [os.path.join(config2.DATA_DIR, config2.AQS_STEM + "_*.parquet")])
@@ -1818,10 +2193,17 @@ def run_data(quick=False, start=None, end=None, years=None):
 
     fetch_aqs_v2(years=years)          # REQUIRED: exceptions propagate
 
-    for label, fn in (("merra2-slv", lambda: fetch_merra2_slv(start, end)),
-                      ("merra2-combined",
-                       lambda: fetch_merra2_combined(start, end)),
-                      ("hms", lambda: fetch_hms_grid(start, end))):
+    optional = [("merra2-slv", lambda: fetch_merra2_slv(start, end)),
+                ("merra2-combined",
+                 lambda: fetch_merra2_combined(start, end)),
+                ("hms", lambda: fetch_hms_grid(start, end)),
+                ("edgar", fetch_edgar_domain)]   # static: window-independent
+    if config2.DOMAIN != "tx":
+        # tx deliberately absent: its 'geoscf' registry key resolves to the
+        # committed v1 Texas parquet (write_external_paths candidates), and
+        # a refetch here would only duplicate a frozen product.
+        optional.append(("geoscf", lambda: fetch_geoscf_domain(start, end)))
+    for label, fn in optional:
         try:
             if fn() is None:
                 _say(f"{label}: unavailable -- downstream features stay NaN")
