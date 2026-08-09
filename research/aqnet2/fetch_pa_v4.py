@@ -35,7 +35,7 @@ import config2
 KEY_PATH = os.path.expanduser("~/.purpleair_key")
 SEL_PATH = os.path.expanduser("~/scratch/aqnet/pa_selection.parquet")
 OUT_DIR = os.path.join(config2.DATA_DIR, "pa_v4")
-MANIFEST = os.path.join(OUT_DIR, "pa_v4_manifest.json")
+MANIFEST = os.path.join(OUT_DIR, "pa_v4_manifest_%s.json")
 FIELDS = ("pm2.5_cf_1_a,pm2.5_cf_1_b,pm2.5_atm_a,pm2.5_atm_b,"
           "humidity,temperature")
 W0 = pd.Timestamp("2021-01-01")
@@ -67,22 +67,28 @@ def api(path, params, key):
             if e.code >= 500:
                 time.sleep(10 * (attempt + 1))
                 continue
+            if 400 <= e.code < 500:
+                return None      # sensor gone/private: caller records + skips
             raise
     raise RuntimeError("rate-limited after retries: %s" % path)
 
 
-def load_manifest():
-    if os.path.exists(MANIFEST):
-        with open(MANIFEST) as f:
+def load_manifest(shard_tag):
+    path = MANIFEST % shard_tag
+    if os.path.exists(path):
+        with open(path) as f:
             return json.load(f)
-    return {"done": {}, "points_used_est": 0}
+    return {"done": {}, "points_used_est": 0, "_path": path}
 
 
 def save_manifest(m):
-    tmp = MANIFEST + ".tmp"
+    path = m.get("_path") or (MANIFEST % "x")
+    payload = {k: v for k, v in m.items() if k != "_path"}
+    tmp = path + ".tmp"
     with open(tmp, "w") as f:
-        json.dump(m, f)
-    os.replace(tmp, MANIFEST)
+        json.dump(payload, f)
+    os.replace(tmp, path)
+    m["_path"] = path
 
 
 def build_tiers():
@@ -116,8 +122,8 @@ def fetch_sensor(row, avg, key, m):
     si = int(row.sensor_index)
     dest = os.path.join(OUT_DIR, "A" if avg == 360 else "B",
                         "%d.parquet" % si)
-    if str(si) in m["done"]:
-        return 0
+    if os.path.exists(dest) or str(si) in m["done"]:
+        return 0    # the archive file itself is the completion record
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     t0 = max(pd.to_datetime(row.date_created, unit="s"), W0)
     t1 = min(pd.to_datetime(row.last_seen, unit="s"), W1)
@@ -134,6 +140,10 @@ def fetch_sensor(row, avg, key, m):
                 {"start_timestamp": int(cur.timestamp()),
                  "end_timestamp": int(end.timestamp()),
                  "average": avg, "fields": FIELDS}, key)
+        if d is None:
+            _say("sensor %d: 4xx (gone/private) -- skipped" % si)
+            m["done"][str(si)] = -1
+            return 0
         data = d.get("data", [])
         if data:
             df = pd.DataFrame(data, columns=d["fields"])
@@ -141,12 +151,12 @@ def fetch_sensor(row, avg, key, m):
             rows += len(df)
         cur = end
         time.sleep(CALL_SLEEP)
-    if chunks:
-        out = pd.concat(chunks)
-        out["sensor_index"] = si
-        tmp = dest + ".tmp"
-        out.to_parquet(tmp, index=False)
-        os.replace(tmp, dest)
+    out = (pd.concat(chunks) if chunks
+           else pd.DataFrame(columns=FIELDS.split(",")))
+    out["sensor_index"] = si
+    tmp = dest + ".tmp"
+    out.to_parquet(tmp, index=False)
+    os.replace(tmp, dest)   # zero-row file still marks completion on disk
     m["done"][str(si)] = rows
     m["points_used_est"] += rows
     return rows
@@ -160,7 +170,7 @@ def main(argv=None):
     key = open(KEY_PATH).read().strip()
     i, n = (int(x) for x in args.shard.split("/"))
     tiers = build_tiers()
-    m = load_manifest()
+    m = load_manifest(args.shard.replace("/", "of"))
     todo = []
     for t, (df, avg) in tiers.items():
         if args.tier not in ("all", t):
