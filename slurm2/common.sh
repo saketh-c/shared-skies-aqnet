@@ -20,6 +20,13 @@ case "$AQNET2_DOMAIN" in
   *) echo "[common.sh] unknown AQNET2_DOMAIN '$AQNET2_DOMAIN' (known: tx west7)" >&2
      exit 1 ;;
 esac
+# AQNET2_ARTIFACTS_TAG overrides the per-domain default exactly as
+# config2.ARTIFACTS_DIR does in-process: without this line every sbatch
+# sentinel pre-check would hit the POPULATED default bundle (e.g. v3) under
+# a tagged run and skip the whole chain green while the tagged namespace
+# stays empty. config2 remains the authority (it validates the tag); this
+# only keeps the shell's ART in step with it. Unset = the frozen default.
+AQ2_NS=${AQNET2_ARTIFACTS_TAG:-$AQ2_NS}
 export ART=$REPO/research/aqnet2/artifacts/$AQ2_NS
 export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-4}
 export MKL_NUM_THREADS=$OMP_NUM_THREADS

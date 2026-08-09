@@ -2021,7 +2021,7 @@ def write_external_paths():
     """Write artifact external_paths.json -> its path (the frame2 registry).
 
     Keys {aqs, pa_daily, geoscf, merra2, cams, met_extra, hms_grid, edgar,
-    pa_v4_daily, pa_v4_pairs}
+    pa_v4_daily, pa_v4_pairs, hms_by_sensor_v4}
     (plus `statics` for non-tx domains), each included ONLY when its file
     exists
     (frame2 skips missing keys loudly; an absent key is honest degradation,
@@ -2047,9 +2047,9 @@ def write_external_paths():
     key is NEW, so no shipped consumer reads it and the current pipeline
     behavior is unchanged by its presence.
 
-    `pa_v4_daily` / `pa_v4_pairs` (v4 PurpleAir archive ingest,
-    pa_v4_ingest.py) follow the same precedent: NEW keys, domain-stamped
-    window-stamped finals, and the only readers sit behind
+    `pa_v4_daily` / `pa_v4_pairs` / `hms_by_sensor_v4` (v4 PurpleAir
+    archive ingest, pa_v4_ingest.py) follow the same precedent: NEW keys,
+    domain-stamped window-stamped finals, and the only readers sit behind
     AQNET2_PA_SOURCE=v4 (default v2), so registering them changes no
     current pipeline behavior either."""
     v1_data = os.path.join(config2.V1_DIR, "data")
@@ -2092,6 +2092,9 @@ def write_external_paths():
         "pa_v4_pairs": _best_glob(
             [os.path.join(config2.DATA_DIR,
                           _dstem("pa_v4_pairs") + "_[0-9]*.parquet")]),
+        "hms_by_sensor_v4": _best_glob(
+            [os.path.join(config2.DATA_DIR,
+                          _dstem("hms_by_sensor_v4") + "_[0-9]*.parquet")]),
     }
     if not tx:
         # frame2's default statics path is the committed Texas lattice;

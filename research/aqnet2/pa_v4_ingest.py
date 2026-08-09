@@ -34,10 +34,18 @@ window-stamped, domain-stamped tables under DATA_DIR:
                 from frm_km by metadata vintage; frm_km stays the
                 registered gate).
 
-Both finals are registered by fetchers2.write_external_paths under the
-NEW keys 'pa_v4_daily' / 'pa_v4_pairs' -- like the 'edgar' precedent, no
-shipped consumer reads them, so their presence changes no current
-pipeline behavior.
+A third, OPTIONAL final rides along when an hms_grid raster exists:
+
+  hms_by_sensor_v4  daily HMS smoke density per v4-fleet sensor (nearest
+                    raster cell within one cell pitch, dense tier-0 rows
+                    over the raster's coverage window) -- the v4 analogue
+                    of the committed v2 hms_smoke_by_sensor product,
+                    which calibrate's v4 branch prefers when present.
+
+All finals are registered by fetchers2.write_external_paths under the
+NEW keys 'pa_v4_daily' / 'pa_v4_pairs' / 'hms_by_sensor_v4' -- like the
+'edgar' precedent, no shipped consumer reads them, so their presence
+changes no current pipeline behavior.
 
 AQNET2_PA_SOURCE switch (pa_source()): default 'v2' changes NOTHING --
 the tx domain and the shipped v3 behavior stay byte-identical. Under
@@ -99,6 +107,11 @@ PAIRS_GATE_EXCEEDED = False
 
 DAILY_STEM = "pa_v4_daily"
 PAIRS_STEM = "pa_v4_pairs"
+HMS_BY_SENSOR_STEM = "hms_by_sensor_v4"
+# hms_by_sensor_v4 join cap: a sensor maps to its nearest hms_grid cell
+# only within ONE cell pitch per axis; farther means the raster never
+# rasterized that neighborhood and no coverage is claimed.
+HMS_CELL_PITCH_DEG = float(config2.GRID_DEG)
 DAILY_COLUMNS = ["sensor_index", "lat", "lon", "date", "pa_cf1", "pa_atm",
                  "pa_rh", "pa_t", "n_blocks", "tier", "qc_pass", "tz_approx"]
 PAIRS_COLUMNS = DAILY_COLUMNS + ["site_id", "frm_pm25", "dist_km"]
@@ -443,6 +456,85 @@ def build_pairs_table(daily, selection, aqs_daily):
             .reset_index(drop=True))
 
 
+def build_hms_by_sensor(coords, hms):
+    """Daily HMS smoke density per v4 sensor from the gridded raster.
+
+    coords: [sensor_id(str), lat, lon] (sensor_coords()). hms: the
+    hms_grid product [lat|cell_lat, lon|cell_lon, date, hms_smoke], which
+    holds rows ONLY for smoke-positive cells (fetchers2.fetch_hms_grid:
+    inside the raster's coverage window a missing cell-day means no smoke
+    polygon). Each sensor maps to its nearest raster cell, capped at ONE
+    cell pitch per axis (HMS_CELL_PITCH_DEG): a sensor farther than that
+    from every cell the raster ever marked sits outside the rasterized
+    envelope and is left out of the table, so no coverage is claimed for
+    it (calibrate keeps it NaN). The output is DENSE over the raster's
+    coverage window -- one row per (covered sensor, day) with hms_smoke 0
+    on no-polygon days -- so a consumer's left-join is NaN exactly where
+    coverage genuinely ends, mirroring the committed v2 by-sensor
+    product's semantics for the v4 fleet.
+
+    Returns [sensor_id(str), date, hms_smoke(int8)] sorted by
+    (sensor_id, date), empty when no sensor maps or the raster is empty.
+    """
+    hms = hms.rename(columns={"cell_lat": "lat", "cell_lon": "lon"})
+    need = {"lat", "lon", "date", "hms_smoke"}
+    missing = need - set(hms.columns)
+    if missing:
+        raise ValueError(f"hms_grid product missing columns "
+                         f"{sorted(missing)}")
+    empty = pd.DataFrame({"sensor_id": pd.Series(dtype=str),
+                          "date": pd.Series(dtype="datetime64[ns]"),
+                          "hms_smoke": pd.Series(dtype=np.int8)})
+    if not len(hms) or not len(coords):
+        return empty
+    hms = hms.copy()
+    hms["date"] = pd.to_datetime(hms["date"]).dt.normalize()
+
+    # Nearest raster cell per sensor, capped at one pitch per axis. Lazy
+    # scipy import: this module stays importable by the pa_source()-only
+    # consumers without the scipy dependency chain.
+    from scipy.spatial import cKDTree
+    cells = hms[["lat", "lon"]].drop_duplicates().reset_index(drop=True)
+    tree = cKDTree(cells[["lat", "lon"]].to_numpy(dtype=np.float64))
+    q = np.column_stack([coords["lat"].to_numpy(dtype=np.float64),
+                         coords["lon"].to_numpy(dtype=np.float64)])
+    _, idx = tree.query(q, k=1)
+    clat = cells["lat"].to_numpy()[idx]
+    clon = cells["lon"].to_numpy()[idx]
+    tol = HMS_CELL_PITCH_DEG + 1e-6
+    within = ((np.abs(clat - q[:, 0]) <= tol)
+              & (np.abs(clon - q[:, 1]) <= tol))
+    n_out = int((~within).sum())
+    if n_out:
+        _say(f"hms_by_sensor: {n_out:,} sensors beyond one cell pitch of "
+             f"the raster -- left uncovered (no coverage claim)")
+    if not within.any():
+        return empty
+    assign = pd.DataFrame({
+        "sensor_id": coords["sensor_id"].astype(str).to_numpy()[within],
+        "lat": clat[within],
+        "lon": clon[within],
+    })
+
+    # Smoke-positive sensor-days at the assigned cells, then a dense fill
+    # over the raster's coverage window (missing cell-day = tier 0).
+    sm = assign.merge(hms[["lat", "lon", "date", "hms_smoke"]]
+                      .drop_duplicates(["lat", "lon", "date"]),
+                      on=["lat", "lon"], how="inner")
+    days = pd.date_range(hms["date"].min(), hms["date"].max(), freq="D")
+    sids = assign["sensor_id"].to_numpy()
+    out = pd.DataFrame({
+        "sensor_id": np.repeat(sids, len(days)),
+        "date": np.tile(days.to_numpy(), len(sids)),
+    })
+    out = out.merge(sm[["sensor_id", "date", "hms_smoke"]],
+                    on=["sensor_id", "date"], how="left")
+    out["hms_smoke"] = (out["hms_smoke"].fillna(0)
+                        .astype(np.float64).astype(np.int8))
+    return (out.sort_values(["sensor_id", "date"], kind="mergesort")
+               .reset_index(drop=True))
+
+
 # -- Output resolution (window-stamped finals + data-stage registry) --------
 
 def _window_tag(start, end):
@@ -523,6 +615,36 @@ def pairs_path(explicit=None):
     return _widest_final(PAIRS_STEM)
 
 
+def hms_by_sensor_path(explicit=None):
+    """Resolve the hms_by_sensor_v4 table (same preference order as
+    daily_path); None when absent -- calibrate then falls back to the
+    committed v2-fleet by-sensor product with its NaN accounting."""
+    if explicit:
+        if not os.path.exists(explicit):
+            raise FileNotFoundError(
+                f"hms_by_sensor_v4 table not found: {explicit}")
+        return explicit
+    p = _registry().get("hms_by_sensor_v4")
+    if p and os.path.exists(p):
+        return p
+    return _widest_final(HMS_BY_SENSOR_STEM)
+
+
+def _hms_grid_path():
+    """The hms_grid raster to build hms_by_sensor_v4 from: the data-stage
+    registry entry, else the widest domain-stamped final under DATA_DIR,
+    else the committed v1 raster; None when nothing exists (hms_grid is an
+    OPTIONAL source, so the builder skips, announced)."""
+    p = _registry().get("hms_grid")
+    if p and os.path.exists(p):
+        return p
+    p = _widest_final("hms_grid")
+    if p:
+        return p
+    p = os.path.join(config2.PIPELINE_DIR, "hms_grid.parquet")
+    return p if os.path.exists(p) else None
+
+
 # -- Consumer-side loaders (the AQNET2_PA_SOURCE=v4 read path) --------------
 
 def load_daily(path=None, qc_only=True, tiers=None, start=None, end=None):
@@ -531,6 +653,16 @@ def load_daily(path=None, qc_only=True, tiers=None, start=None, end=None):
     qc_only keeps only qc_pass sensor-days: QC failures exist in the
     table for audit, never in models. tiers optionally restricts to a
     subset of {"A", "B"}.
+
+    Domain envelope gate: the archive's selection universe is built
+    OUTSIDE this repo (fetch_pa_v4's pa_selection.parquet), so nothing
+    upstream guarantees its sensors sit inside config2.TX_BBOX (the
+    domain bbox); an out-of-envelope sensor would silently receive
+    bbox-edge covariates from frame2's uncapped nearest-cell join and
+    enter frames and folds as a legitimate unit. Every consumer reads
+    through here, so the filter is applied once and announced, never
+    silent. NaN coordinates fail the gate (a locationless sensor cannot
+    be placed in any frame).
     """
     p = daily_path(path)
     if p is None:
@@ -539,6 +671,17 @@ def load_daily(path=None, qc_only=True, tiers=None, start=None, end=None):
             "archive host, or register 'pa_v4_daily' in external_paths.json)")
     df = pd.read_parquet(p)
     df["date"] = pd.to_datetime(df["date"]).dt.normalize()
+    bb = config2.TX_BBOX
+    in_bbox = (df["lat"].astype(np.float64)
+                 .between(bb["lat_min"], bb["lat_max"])
+               & df["lon"].astype(np.float64)
+                 .between(bb["lon_min"], bb["lon_max"]))
+    if not bool(in_bbox.all()):
+        n_sens = int(df.loc[~in_bbox, "sensor_index"].nunique())
+        _say(f"bbox: dropped {n_sens:,} sensors "
+             f"({int((~in_bbox).sum()):,} sensor-days) outside the "
+             f"{config2.DOMAIN} domain envelope")
+        df = df[in_bbox]
     if qc_only:
         df = df[df["qc_pass"].astype(bool)]
     if tiers:
@@ -632,11 +775,13 @@ def load_pairs_table(max_dist_km=PAIR_KM, path=None):
 
 def run_ingest(start=None, end=None, archive_dir=None, selection_path=None,
                aqs_path=None, out_dir=None):
-    """Build pa_v4_daily then pa_v4_pairs, resumably.
+    """Build pa_v4_daily then pa_v4_pairs (plus, when an hms_grid raster
+    exists, hms_by_sensor_v4), resumably.
 
     An existing final whose window stamp covers [start, end] is reused
     (FORCE=1 rebuilds); pairs reuse a freshly-skipped daily. Returns
-    (daily_final_path, pairs_final_path).
+    (daily_final_path, pairs_final_path); the hms side product resolves
+    via hms_by_sensor_path().
     """
     start = start or config2.DATE_START
     end = end or config2.DATE_END
@@ -696,6 +841,50 @@ def run_ingest(start=None, end=None, archive_dir=None, selection_path=None,
         _say(f"pairs: wrote {len(pairs):,} pair-days "
              f"({pairs['sensor_index'].nunique()} sensors x "
              f"{pairs['site_id'].nunique()} sites) -> {dest_pairs}")
+
+    # hms_by_sensor_v4: the v4-fleet analogue of the committed v2
+    # hms_smoke_by_sensor product (which calibrate's v4 branch otherwise
+    # falls back to, leaving the wider fleet NaN). OPTIONAL: hms_grid is
+    # itself an optional source, so absence skips loudly, never errors.
+    # The final is stamped with the window it actually covers (the request
+    # intersected with the raster's coverage), so the covering-final rule
+    # never mistakes a short raster for a full-window product.
+    hms_grid_p = _hms_grid_path()
+    if hms_grid_p is None:
+        _say("hms_by_sensor: no hms_grid product found -- skipping "
+             "(calibrate falls back to the committed v2-fleet table)")
+        return dest_daily, dest_pairs
+    hms = pd.read_parquet(hms_grid_p)
+    hms = hms.rename(columns={"cell_lat": "lat", "cell_lon": "lon"})
+    hms["date"] = pd.to_datetime(hms["date"]).dt.normalize()
+    if not len(hms):
+        _say(f"hms_by_sensor: {hms_grid_p} is empty -- skipping")
+        return dest_daily, dest_pairs
+    cov_lo = max(pd.Timestamp(start), hms["date"].min())
+    cov_hi = min(pd.Timestamp(end), hms["date"].max())
+    if cov_lo > cov_hi:
+        _say(f"hms_by_sensor: {hms_grid_p} does not overlap "
+             f"{start}..{end} -- skipping")
+        return dest_daily, dest_pairs
+    hms = hms[(hms["date"] >= cov_lo) & (hms["date"] <= cov_hi)]
+    dest_hms = os.path.join(
+        root, f"{_dstem(HMS_BY_SENSOR_STEM)}_{_window_tag(cov_lo, cov_hi)}"
+              ".parquet")
+    have = None if force else _covering_final(HMS_BY_SENSOR_STEM,
+                                              cov_lo, cov_hi, root)
+    if have:
+        _say(f"hms_by_sensor: {have} covers {cov_lo:%Y-%m-%d}.."
+             f"{cov_hi:%Y-%m-%d} (FORCE=1 to rebuild) -- skip")
+    else:
+        # sensor_coords routes through load_daily, so the domain bbox
+        # gate applies to the covered fleet by construction.
+        coords = sensor_coords(dest_daily)
+        by_sensor = build_hms_by_sensor(coords, hms)
+        _atomic_parquet(by_sensor, dest_hms)
+        n_smoke = int((by_sensor["hms_smoke"] > 0).sum())
+        _say(f"hms_by_sensor: wrote {len(by_sensor):,} sensor-days "
+             f"({by_sensor['sensor_id'].nunique():,} sensors, "
+             f"{n_smoke:,} smoke-positive) -> {dest_hms}")
     return dest_daily, dest_pairs
 
 

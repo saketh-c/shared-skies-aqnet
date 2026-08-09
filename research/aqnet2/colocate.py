@@ -193,10 +193,20 @@ def main(argv=None):
     ap.add_argument("--quick", action="store_true",
                     help="accepted for stage-CLI uniformity; the pair table "
                          "is window-independent so quick == full here")
-    ap.add_argument("--max-km", type=float, default=MAX_PAIR_KM)
+    ap.add_argument("--max-km", type=float, default=None,
+                    help=f"pair radius in km (default {MAX_PAIR_KM:g}; "
+                         "under AQNET2_PA_SOURCE=v4 the default clamps to "
+                         "the pa_v4_pairs product gate)")
     ap.add_argument("--pa-parquet", default=None)
     ap.add_argument("--aqs-parquet", default=None)
     args = ap.parse_args(argv)
+    if args.max_km is None:
+        # The v4 pairs product is gated at PAIR_KM, so a wider DEFAULT
+        # would only trigger the loud gate warning and let the audit's
+        # pair inventory label a 10 km set as a 25 km one; an explicit
+        # --max-km still wins (and still warns beyond the gate).
+        args.max_km = (pa_v4_ingest.PAIR_KM
+                       if pa_v4_ingest.pa_source() == "v4" else MAX_PAIR_KM)
 
     dest = pairs_artifact()
     if os.path.exists(dest) and os.environ.get("FORCE") != "1":

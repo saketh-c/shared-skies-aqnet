@@ -28,6 +28,22 @@ What is frozen here:
     (colocate.pairs_artifact) so stale cross-source artifacts are never
     consumed; calibrate skips its 25 km sensitivity arm under v4 and
     zero-fills hms_smoke only for sensors the committed product covers.
+  * Domain envelope: load_daily drops sensors outside config2.TX_BBOX
+    (the domain bbox) with an announced count, never silently, so an
+    out-of-domain archive sensor can reach no frame or fold;
+    sensor_coords inherits the gate.
+  * hms_by_sensor_v4: build_hms_by_sensor joins the v4 sensor
+    coordinates to the hms_grid raster at the nearest cell within ONE
+    cell pitch (farther sensors get no coverage claim) and emits dense
+    tier-0 rows over the raster's coverage window; run_ingest writes and
+    stamps the final; calibrate's v4 branch prefers it when present and
+    falls back to the committed v2-fleet table's covered-sensors-only
+    accounting when absent.
+  * graph_res coordinate routing: under v4, load_raw_pa joins T2
+    pretrain coordinates from pa_v4_ingest.sensor_coords (announcing
+    rows dropped for missing coords), never from the committed v2
+    parquet, so v4-only sensors survive into the station universe; the
+    default v2 join is untouched.
 """
 import json
 import os
@@ -41,6 +57,7 @@ import calibrate
 import colocate
 import config2
 import frame2
+import graph_res
 import pa_v4_ingest
 
 RAW_COLS = ["time_stamp", "humidity", "temperature", "pm2.5_atm_a",
@@ -728,3 +745,190 @@ def test_v4_hms_zero_fill_only_for_covered_sensors(tmp_path, monkeypatch,
     out2 = calibrate.load_pa_daily(pa_parquet=pa_path,
                                    hms_parquet=str(hpath))
     assert (out2["hms_smoke"] == 0.0).all()
+
+
+# ── Domain bbox gate ───────────────────────────────────────────────────────
+
+def _daily_table(rows):
+    """rows: (sensor_index, lat, lon, date_str) -> a DAILY_COLUMNS frame."""
+    return pd.DataFrame({
+        "sensor_index": np.array([r[0] for r in rows], dtype=np.int64),
+        "lat": [r[1] for r in rows], "lon": [r[2] for r in rows],
+        "date": pd.to_datetime([r[3] for r in rows]),
+        "pa_cf1": 10.0, "pa_atm": 9.0, "pa_rh": 40.0, "pa_t": 25.0,
+        "n_blocks": np.int64(4), "tier": "A",
+        "qc_pass": True, "tz_approx": False,
+    })[pa_v4_ingest.DAILY_COLUMNS]
+
+
+def test_load_daily_bbox_gate_drops_out_of_domain_sensors(tmp_path, capsys):
+    p = tmp_path / "pa_v4_daily_20240601_20240630.parquet"
+    _daily_table([
+        (1, 30.0, -97.0, "2024-06-10"),      # inside the tx bbox
+        (2, 45.0, -120.0, "2024-06-10"),     # far outside (WA-ish)
+        (2, 45.0, -120.0, "2024-06-11"),
+        (3, 30.1, -80.0, "2024-06-10"),      # lat in, lon out -> out
+    ]).to_parquet(p, index=False)
+
+    df = pa_v4_ingest.load_daily(path=str(p))
+    assert set(df["sensor_index"]) == {1}
+    out = capsys.readouterr().out
+    assert "bbox: dropped 2 sensors (3 sensor-days)" in out
+    assert "domain envelope" in out
+
+    # sensor_coords routes through load_daily and inherits the gate.
+    coords = pa_v4_ingest.sensor_coords(path=str(p))
+    assert set(coords["sensor_id"]) == {"1"}
+
+    # An all-inside table stays silent (no spurious announcement).
+    p2 = tmp_path / "pa_v4_daily_in_20240601_20240630.parquet"
+    _daily_table([(1, 30.0, -97.0, "2024-06-10")]).to_parquet(p2, index=False)
+    capsys.readouterr()
+    df2 = pa_v4_ingest.load_daily(path=str(p2))
+    assert len(df2) == 1
+    assert "bbox" not in capsys.readouterr().out
+
+
+# ── hms_by_sensor_v4 builder + calibrate preference ────────────────────────
+
+def test_build_hms_by_sensor_pitch_cap_and_dense_coverage(capsys):
+    coords = pd.DataFrame({
+        "sensor_id": ["1", "2"],
+        "lat": [30.02, 31.0],       # 1: within a pitch of cell (30, -97)
+        "lon": [-97.03, -96.0],     # 2: > 1 deg from every raster cell
+    })
+    hms = pd.DataFrame({
+        "cell_lat": [30.0, 32.0], "cell_lon": [-97.0, -95.0],
+        "date": pd.to_datetime(["2024-06-10", "2024-06-12"]),
+        "hms_smoke": np.array([2, 1], dtype=np.int8),
+    })
+    out = pa_v4_ingest.build_hms_by_sensor(coords, hms)
+    # Only the in-pitch sensor is covered; its rows are DENSE over the
+    # raster's coverage window with explicit tier-0 no-polygon days.
+    assert set(out["sensor_id"]) == {"1"}
+    got = {pd.Timestamp(d).strftime("%m-%d"): int(v)
+           for d, v in zip(out["date"], out["hms_smoke"])}
+    assert got == {"06-10": 2, "06-11": 0, "06-12": 0}
+    assert "1 sensors beyond one cell pitch" in capsys.readouterr().out
+
+
+def test_run_ingest_writes_hms_by_sensor_final(synth_archive, monkeypatch):
+    out = synth_archive["tmp"] / "data_hms"
+    out.mkdir()
+    monkeypatch.delenv("FORCE", raising=False)
+    hmsp = synth_archive["tmp"] / "hms_grid_synth.parquet"
+    pd.DataFrame({"cell_lat": [30.0], "cell_lon": [-97.0],
+                  "date": pd.to_datetime(["2024-06-10"]),
+                  "hms_smoke": np.array([3], dtype=np.int8)}) \
+        .to_parquet(hmsp, index=False)
+    monkeypatch.setattr(pa_v4_ingest, "_hms_grid_path", lambda: str(hmsp))
+    kw = dict(archive_dir=synth_archive["archive"],
+              selection_path=synth_archive["selection"],
+              aqs_path=synth_archive["aqs"], out_dir=str(out))
+
+    pa_v4_ingest.run_ingest("2024-06-01", "2024-06-30", **kw)
+    # Stamped with the window it ACTUALLY covers (the raster's), not the
+    # request; resolvable through the standard path resolver.
+    final = out / "hms_by_sensor_v4_20240610_20240610.parquet"
+    assert final.exists()
+    assert pa_v4_ingest.hms_by_sensor_path(str(final)) == str(final)
+    tbl = pd.read_parquet(final)
+    # Of sensors 1/2/3 only sensor 1 (30.0, -97.0) sits within one cell
+    # pitch of the single raster cell; 2 (30.5) and 3 (30.2, -97.2) do not.
+    assert set(tbl["sensor_id"]) == {"1"}
+    assert tbl["hms_smoke"].tolist() == [3]
+
+    # Resume: a covering final is reused untouched.
+    mt = final.stat().st_mtime
+    pa_v4_ingest.run_ingest("2024-06-01", "2024-06-30", **kw)
+    assert final.stat().st_mtime == mt
+
+
+def test_calibrate_prefers_v4_hms_product_with_fallback(tmp_path,
+                                                        monkeypatch, capsys):
+    monkeypatch.setenv("AQNET2_PA_SOURCE", "v4")
+    base = pd.DataFrame({
+        "sensor_id": ["1", "1", "1", "2"],
+        "date": pd.to_datetime(["2024-06-10", "2024-06-11",
+                                "2024-06-20", "2024-06-10"]),
+        "lat": [30.0] * 4, "lon": [-97.0] * 4,
+        "rh": [40.0] * 4, "t": [25.0] * 4,
+        "pa_raw": [12.5, 8.0, 6.0, 5.0],
+        "channel_reconstructed": [0.0] * 4, "urban": [0.0] * 4,
+    })
+    monkeypatch.setattr(pa_v4_ingest, "load_daily_for_cal",
+                        lambda *a, **k: base.copy())
+    # Dense v4 by-sensor product: sensor 1 covered on 06-10/06-11 only.
+    v4p = tmp_path / "hms_by_sensor_v4_20240610_20240611.parquet"
+    pd.DataFrame({"sensor_id": ["1", "1"],
+                  "date": pd.to_datetime(["2024-06-10", "2024-06-11"]),
+                  "hms_smoke": np.array([2, 0], dtype=np.int8)}) \
+        .to_parquet(v4p, index=False)
+    monkeypatch.setattr(pa_v4_ingest, "hms_by_sensor_path",
+                        lambda explicit=None: str(v4p))
+
+    out = calibrate.load_pa_daily()
+    got = {(r["sensor_id"], pd.Timestamp(r["date"]).strftime("%m-%d")):
+           r["hms_smoke"] for _, r in out.iterrows()}
+    assert got[("1", "06-10")] == 2.0     # product value
+    assert got[("1", "06-11")] == 0.0     # explicit tier-0 row, no fill
+    assert np.isnan(got[("1", "06-20")])  # outside the coverage window
+    assert np.isnan(got[("2", "06-10")])  # uncovered sensor
+    txt = capsys.readouterr().out
+    assert "v4 by-sensor product" in txt
+    assert "2 sensor-days outside" in txt
+
+    # Fallback (no v4 product): the committed covered-sensors-only
+    # accounting, unchanged -- covered sensors zero-fill everywhere.
+    monkeypatch.setattr(pa_v4_ingest, "hms_by_sensor_path",
+                        lambda explicit=None: None)
+    cpath = tmp_path / "hms_smoke_by_sensor.parquet"
+    pd.DataFrame({"sensor_id": ["1"],
+                  "date": pd.to_datetime(["2024-06-10"]),
+                  "hms_smoke": [2.0]}).to_parquet(cpath, index=False)
+    monkeypatch.setattr(calibrate, "HMS_PARQUET", str(cpath))
+    out2 = calibrate.load_pa_daily()
+    got2 = {(r["sensor_id"], pd.Timestamp(r["date"]).strftime("%m-%d")):
+            r["hms_smoke"] for _, r in out2.iterrows()}
+    assert got2[("1", "06-10")] == 2.0
+    assert got2[("1", "06-11")] == 0.0
+    assert got2[("1", "06-20")] == 0.0    # covered fill, v2-product rules
+    assert np.isnan(got2[("2", "06-10")])
+    assert "left NaN" in capsys.readouterr().out
+    monkeypatch.delenv("AQNET2_PA_SOURCE", raising=False)
+
+
+# ── graph_res T2 coordinate routing ────────────────────────────────────────
+
+def test_graph_res_raw_pa_coords_route_by_source(tmp_path, monkeypatch,
+                                                 capsys):
+    calp = tmp_path / "pa_calibrated.parquet"
+    pd.DataFrame({"sensor_id": ["42", "777", "999"],
+                  "date": pd.to_datetime(["2024-06-10"] * 3),
+                  "pa_raw": [10.0, 11.0, 12.0],
+                  "pa_cal_full": [9.0] * 3}).to_parquet(calp, index=False)
+    paths = {"pa_calibrated": str(calp),
+             "pa_parquet": str(tmp_path / "does_not_exist.parquet")}
+
+    # v4: coords come from sensor_coords; the committed parquet path does
+    # not even exist, proving it is never consulted. The v4-only sensor
+    # 999 SURVIVES; 777 (no coordinates anywhere) drops with a count.
+    monkeypatch.setenv("AQNET2_PA_SOURCE", "v4")
+    monkeypatch.setattr(
+        pa_v4_ingest, "sensor_coords",
+        lambda path=None: pd.DataFrame({"sensor_id": ["42", "999"],
+                                        "lat": [30.0, 31.0],
+                                        "lon": [-97.0, -96.0]}))
+    df = graph_res.load_raw_pa(paths, "2024-06-01", "2024-06-30")
+    assert set(df["sensor_id"]) == {"42", "999"}
+    assert df.loc[df["sensor_id"] == "999", "lat"].iloc[0] \
+        == pytest.approx(31.0)
+    assert "dropping 1 in-window sensor-days" in capsys.readouterr().out
+
+    # v2 default: the shipped committed-parquet join, byte-identical --
+    # sensors absent from it (777, 999) drop with no v4 announcement.
+    monkeypatch.delenv("AQNET2_PA_SOURCE", raising=False)
+    paths["pa_parquet"] = _committed_style_pa(tmp_path)
+    df2 = graph_res.load_raw_pa(paths, "2024-06-01", "2024-06-30")
+    assert set(df2["sensor_id"]) == {"42"}
+    assert "pa_v4_daily coordinates" not in capsys.readouterr().out

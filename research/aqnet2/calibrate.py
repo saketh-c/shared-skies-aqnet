@@ -200,9 +200,11 @@ def load_pa_daily(pa_parquet=None, hms_parquet=None, start=None, end=None):
     pa_raw is a TRUE dual-channel cf_1 mean, so channel_reconstructed is
     identically 0. The shared feature tail below (dewpoint, harmonics,
     HMS, sensor age, window) applies in both routes, with ONE v4 delta:
-    the hms_smoke zero-fill is restricted to sensors the committed
-    product covers, and uncovered sensor-days stay NaN (announced) --
-    the v2-fleet product cannot claim tier 0 for the wider v4 fleet.
+    hms_smoke prefers the v4-fleet by-sensor product
+    (pa_v4_ingest.hms_by_sensor_path) when it exists; without it the
+    zero-fill is restricted to sensors the committed v2-fleet product
+    covers, and uncovered sensor-days stay NaN (announced) -- the
+    v2-fleet product cannot claim tier 0 for the wider v4 fleet.
     The default 'v2' leaves the shipped behavior byte-identical.
     """
     use_v4 = pa_parquet is None and pa_v4_ingest.pa_source() == "v4"
@@ -251,18 +253,37 @@ def load_pa_daily(pa_parquet=None, hms_parquet=None, start=None, end=None):
 
     # HMS smoke tier by (sensor, day); absence of a smoke polygon is tier 0
     # by that product's semantics (v1 convention), not a fill. Under v4 the
-    # zero-fill is honest ONLY for sensors the product actually covers: the
-    # committed hms_smoke_by_sensor table spans the v2 fleet, so v4
-    # sensor-days of sensors absent from it stay NaN (native missing to the
-    # tree models), never a silent tier 0 through a real smoke day.
+    # v4-fleet by-sensor product (pa_v4_ingest.build_hms_by_sensor, DENSE
+    # over its coverage window with explicit tier-0 rows) is preferred when
+    # present; otherwise the committed hms_smoke_by_sensor table spans the
+    # v2 fleet only, so the zero-fill is honest ONLY for sensors it
+    # actually covers and v4 sensor-days of sensors absent from it stay
+    # NaN (native missing to the tree models), never a silent tier 0
+    # through a real smoke day.
     hpath = hms_parquet or HMS_PARQUET
+    hms_v4 = None
+    if use_v4 and hms_parquet is None:
+        hms_v4 = pa_v4_ingest.hms_by_sensor_path()
+        if hms_v4:
+            hpath = hms_v4
     if os.path.exists(hpath):
         hms = pd.read_parquet(hpath)
         hms["sensor_id"] = hms["sensor_id"].astype(str)
         hms["date"] = pd.to_datetime(hms["date"]).dt.normalize()
         out = out.merge(hms[["sensor_id", "date", "hms_smoke"]],
                         on=["sensor_id", "date"], how="left")
-        if use_v4:
+        if hms_v4:
+            # The v4 table carries explicit tier-0 rows, so no fill is
+            # applied: NaN after the join means outside the raster's
+            # coverage window or an uncovered sensor -- honestly missing
+            # either way.
+            out["hms_smoke"] = out["hms_smoke"].astype(np.float64)
+            _say(f"hms_smoke: v4 by-sensor product {os.path.basename(hpath)}")
+            n_nan = int(out["hms_smoke"].isna().sum())
+            if n_nan:
+                _say(f"hms_smoke: {n_nan:,} sensor-days outside "
+                     f"{os.path.basename(hpath)} coverage left NaN")
+        elif use_v4:
             covered = out["sensor_id"].isin(set(hms["sensor_id"]))
             fill = covered & out["hms_smoke"].isna()
             out.loc[fill, "hms_smoke"] = 0.0

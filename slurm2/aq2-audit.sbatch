@@ -36,11 +36,13 @@ else
 fi
 
 cd "$REPO"
-mkdir -p "$ART"
-git rev-parse HEAD > "$ART/git_sha.txt"
-pip freeze > "$ART/versions.txt"
 
 if [ "${FORCE:-0}" != "1" ] && [ -f "$ART/power_analysis.json" ] && [ -f "$ART/audit_report.json" ]; then
   echo "audit outputs exist — skipping (FORCE=1 to re-run)"; exit 0
 fi
+# Provenance writes sit BELOW the sentinel on purpose: a skipped audit must
+# never rewrite a frozen bundle's git_sha/versions with the current SHA.
+mkdir -p "$ART"
+git rev-parse HEAD > "$ART/git_sha.txt"
+pip freeze > "$ART/versions.txt"
 python research/aqnet2/pipeline2.py audit

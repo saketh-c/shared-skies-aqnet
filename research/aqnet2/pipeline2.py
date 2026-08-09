@@ -719,26 +719,45 @@ def stage_audit(args):
               "python": sys.version.split()[0],
               "numpy": np.__version__, "pandas": pd.__version__}
 
-    # 1) PA channel provenance (the committed parquet is single-column ATM).
-    pa_path = os.path.join(config2.PIPELINE_DIR,
-                           "purpleair_full_dataset.parquet")
+    # 1) PA channel provenance -- the archive the chain will ACTUALLY read.
+    #    Under AQNET2_PA_SOURCE=v4 that is the pa_v4_daily table (true
+    #    dual-channel cf_1 means), never the committed ATM parquet; the
+    #    default v2 branch is byte-identical to the shipped behavior.
+    import pa_v4_ingest
+    pa_src = pa_v4_ingest.pa_source()
     n_pa_rows = None
-    if os.path.exists(pa_path):
-        import pyarrow.parquet as pq
-        meta = pq.ParquetFile(pa_path)
-        cols = [c for c in meta.schema_arrow.names]
-        n_pa_rows = int(meta.metadata.num_rows)
-        report["pa_channel"] = {
-            "path": pa_path, "n_rows": n_pa_rows,
-            "pm25_columns": [c for c in cols if "pm25" in c.lower()
-                             or c == "pm25"],
-            "single_pm25_atm": ("pm25" in cols
-                                and not any(c.startswith("pm25_")
-                                            for c in cols)),
-        }
+    if pa_src == "v4":
+        p4 = pa_v4_ingest.daily_path()
+        if p4:
+            import pyarrow.parquet as pq
+            report["pa_channel"] = {
+                "pa_source": "v4", "path": p4,
+                "n_rows": int(pq.ParquetFile(p4).metadata.num_rows),
+                "dual_channel_cf1": True,
+            }
+        else:
+            _skip("audit", "PA channel provenance",
+                  "no pa_v4_daily table found")
+            report["pa_channel"] = {"pa_source": "v4", "path": None}
     else:
-        _skip("audit", "PA channel provenance", f"{pa_path} not found")
-        report["pa_channel"] = None
+        pa_path = os.path.join(config2.PIPELINE_DIR,
+                               "purpleair_full_dataset.parquet")
+        if os.path.exists(pa_path):
+            import pyarrow.parquet as pq
+            meta = pq.ParquetFile(pa_path)
+            cols = [c for c in meta.schema_arrow.names]
+            n_pa_rows = int(meta.metadata.num_rows)
+            report["pa_channel"] = {
+                "path": pa_path, "n_rows": n_pa_rows,
+                "pm25_columns": [c for c in cols if "pm25" in c.lower()
+                                 or c == "pm25"],
+                "single_pm25_atm": ("pm25" in cols
+                                    and not any(c.startswith("pm25_")
+                                                for c in cols)),
+            }
+        else:
+            _skip("audit", "PA channel provenance", f"{pa_path} not found")
+            report["pa_channel"] = None
 
     # 2) Colocation inventory (pure geometry, from colocate.py).
     try:
@@ -760,16 +779,28 @@ def stage_audit(args):
     #    (BUILD_NOTES scope #1): SKIP; reconstruct pa_cf1 := ATM below
     #    20 ug/m3, channel_reconstructed=1 above (excluded from exceedance
     #    labels, inflated cal_var — enforced in calibrate/exceed).
-    n_rows = n_pa_rows or 412_507
-    report["cf1_refetch"] = {
-        "decision": "skip_refetch",
-        "n_sensor_days": n_rows,
-        "est_api_points": int(n_rows * 2.5),
-        "est_wall_clock_days": round(n_rows / 150_000, 1),
-        "fallback": "pa_cf1 := ATM below 20 ug/m3; channel_reconstructed=1 "
-                    "above (rows excluded from exceedance labels, cal_var "
-                    "inflated)",
-    }
+    #    Under v4 the whole question retires: the archive carries true
+    #    dual-channel cf_1 means, so neither the reconstruction fallback
+    #    nor its refetch arithmetic (seeded from the OLD parquet's row
+    #    count) may appear in a v4 audit report.
+    if pa_src == "v4":
+        report["cf1_refetch"] = {
+            "decision": "retired_v4",
+            "reason": "pa_v4_daily carries true dual-channel cf_1 means; "
+                      "the ATM reconstruction policy and its refetch "
+                      "arithmetic do not apply",
+        }
+    else:
+        n_rows = n_pa_rows or 412_507
+        report["cf1_refetch"] = {
+            "decision": "skip_refetch",
+            "n_sensor_days": n_rows,
+            "est_api_points": int(n_rows * 2.5),
+            "est_wall_clock_days": round(n_rows / 150_000, 1),
+            "fallback": "pa_cf1 := ATM below 20 ug/m3; "
+                        "channel_reconstructed=1 above (rows excluded from "
+                        "exceedance labels, cal_var inflated)",
+        }
 
     # 4) Gate power analysis on v1 residuals.
     seed = config2.SEED

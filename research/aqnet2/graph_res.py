@@ -69,6 +69,7 @@ import numpy as np
 import pandas as pd
 
 import config2
+import pa_v4_ingest
 
 # -- Guarded heavy import (module must import with no torch installed) -------
 try:
@@ -293,8 +294,11 @@ def load_raw_pa(paths, start, end):
     """RAW PA sensor-days for pretraining: sensor_id(str), date(ns), lat,
     lon, pa_raw. Prefers pa_calibrated.parquet's pa_raw column (identical
     archive, coordinates already joined by frame2 conventions); falls back
-    to the committed PA parquet ATM channel. NO FRM-derived columns are read
-    on either path -- the pretrain input contract (DESIGN S7)."""
+    to the committed PA parquet ATM channel. When the calibrated parquet
+    lacks coordinates they are joined per sensor: under AQNET2_PA_SOURCE=v4
+    from pa_v4_ingest.sensor_coords (the archive the calibrated rows were
+    built from), else from the committed PA parquet. NO FRM-derived columns
+    are read on either path -- the pretrain input contract (DESIGN S7)."""
     cal_path = paths["pa_calibrated"]
     if os.path.exists(cal_path):
         df = pd.read_parquet(cal_path)
@@ -317,16 +321,34 @@ def load_raw_pa(paths, start, end):
         src = "purpleair_full_dataset.pm25 (ATM)"
     df["sensor_id"] = df["sensor_id"].astype(str)
     df["date"] = _dates_ns(df["date"])
+    v4_coords = False
     if "lat" not in df.columns or "lon" not in df.columns:
-        pa = pd.read_parquet(paths["pa_parquet"],
-                             columns=["sensor_id", "latitude", "longitude"])
-        pa["sensor_id"] = pa["sensor_id"].astype(str)
-        coords = (pa.dropna(subset=["latitude", "longitude"])
-                    .drop_duplicates("sensor_id")
-                    .rename(columns={"latitude": "lat", "longitude": "lon"}))
-        df = df.merge(coords, on="sensor_id", how="left")
+        if pa_v4_ingest.pa_source() == "v4":
+            # v4 archive route (mirrors frame2.load_pa_calibrated): the
+            # calibrated parquet carries no coordinates and the committed
+            # v2 parquet spans the OLD fleet only -- a join from it would
+            # silently drop every v4-only sensor from the T2 universe.
+            coords = pa_v4_ingest.sensor_coords()
+            coords["sensor_id"] = coords["sensor_id"].astype(str)
+            df = df.merge(coords, on="sensor_id", how="left")
+            v4_coords = True
+        else:
+            pa = pd.read_parquet(paths["pa_parquet"],
+                                 columns=["sensor_id", "latitude",
+                                          "longitude"])
+            pa["sensor_id"] = pa["sensor_id"].astype(str)
+            coords = (pa.dropna(subset=["latitude", "longitude"])
+                        .drop_duplicates("sensor_id")
+                        .rename(columns={"latitude": "lat",
+                                         "longitude": "lon"}))
+            df = df.merge(coords, on="sensor_id", how="left")
     df = df[(df["date"] >= pd.Timestamp(start))
             & (df["date"] <= pd.Timestamp(end))]
+    if v4_coords:
+        n_bad = int(df["lat"].isna().sum())
+        if n_bad:
+            _say(f"dropping {n_bad:,} in-window sensor-days with no "
+                 f"pa_v4_daily coordinates")
     df = df.dropna(subset=["lat", "lon"]).reset_index(drop=True)
     _say(f"raw PA source: {src} ({len(df):,} sensor-days, "
          f"{df['sensor_id'].nunique():,} sensors)")
