@@ -12,8 +12,9 @@ pm2.5_atm_b, humidity, temperature.
 Storage: DATA_DIR/pa_v4/<tier>/<sensor_index>.parquet, one file per
 sensor covering its whole in-window life, written atomically. A manifest
 (pa_v4_manifest.json) records completion per sensor: finished sensors are
-never re-fetched. Point usage is read from every API response and
-projected; the run aborts if the projection exceeds POINT_BUDGET.
+never re-fetched. Point usage is charged as rows x N_FIELDS (PurpleAir
+bills per field value); the run aborts past POINT_BUDGET and halts
+immediately on 402 (credits exhausted) without marking sensors failed.
 
 Run:  python fetch_pa_v4.py [--tier A|B|all] [--shard i/n]
 Key:  ~/.purpleair_key (never committed).
@@ -40,6 +41,10 @@ FIELDS = ("pm2.5_cf_1_a,pm2.5_cf_1_b,pm2.5_atm_a,pm2.5_atm_b,"
           "humidity,temperature")
 W0 = pd.Timestamp("2021-01-01")
 W1 = pd.Timestamp("2026-08-08")
+# PurpleAir bills per FIELD VALUE, not per row: measured empirically on
+# 2026-08-09 when the key exhausted at 10,089,488 rows x 6 fields =
+# 60.5M points against an ~60M allotment. Never estimate points as rows.
+N_FIELDS = len(FIELDS.split(","))
 POINT_BUDGET = 55_000_000
 PAIR_KM = 10.0
 PER_SITE = 5
@@ -167,7 +172,7 @@ def fetch_sensor(row, avg, key, m):
     out.to_parquet(tmp, index=False)
     os.replace(tmp, dest)   # zero-row file still marks completion on disk
     m["done"][str(si)] = rows
-    m["points_used_est"] += rows
+    m["points_used_est"] += rows * N_FIELDS
     return rows
 
 
