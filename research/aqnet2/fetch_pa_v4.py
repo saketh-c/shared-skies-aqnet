@@ -67,6 +67,15 @@ def api(path, params, key):
             if e.code >= 500:
                 time.sleep(10 * (attempt + 1))
                 continue
+            if e.code == 402:
+                raise SystemExit(
+                    "[pa_v4] API KEY OUT OF POINTS (402): halting so no "
+                    "sensor gets falsely marked failed. Add points, then "
+                    "resume; archive and manifests stay valid.")
+            if e.code in (401, 403):
+                raise SystemExit(
+                    "[pa_v4] AUTH FAILURE (%d): key missing/invalid; "
+                    "halting." % e.code)
             if 400 <= e.code < 500:
                 return None      # sensor gone/private: caller records + skips
             raise
@@ -193,7 +202,7 @@ def main(argv=None):
                     format(m["points_used_est"], ",")))
             if m["points_used_est"] > POINT_BUDGET:
                 save_manifest(m)
-                raise SystemExit("[pa_v4] POINT BUDGET EXCEEDED — halting "
+                raise SystemExit("[pa_v4] POINT BUDGET EXCEEDED: halting "
                                  "(archive + manifest intact)")
     save_manifest(m)
     _say("shard complete; est points used %s"
