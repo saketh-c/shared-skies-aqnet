@@ -128,7 +128,11 @@ Registered before any v4 fold, calibration, or model stage ran:
   and the vault are never touched by any search iterate.
 * Selection: one config per tier chosen globally, not per outer fold:
   the winner maximizes mean inner-confirmation spatially-blocked R2
-  across outer folds 0-2 only, so later folds never inform selection.
+  across outer folds 0-2 only, so no fold beyond 2 is ever a fit or
+  scoring context. Disclosure: rows belonging to fold 3+ units do
+  appear inside contexts 0-2's inner folds, exactly as they do in
+  production training; what later folds never provide is a held-out
+  evaluation signal.
 * Budgets: T2 graph tier 24 configs, T3 field tier 16 configs, random
   search over the spaces frozen in tune_deep.py at its commit; early
   stop on inner-selection plateau. The v3 default config is always

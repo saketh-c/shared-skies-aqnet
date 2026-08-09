@@ -117,6 +117,106 @@ KM_PER_DEG_LON_EQ = 111.320
 
 VAULT_DATE_START = getattr(config2, "VAULT_DATE_START", "2026-01-01")
 
+# ── Tunable hyperparameters (registered v4 search, EXPANSION.md) ────────────
+#
+# tune_deep.py owns the frozen search space; this module owns the DEFAULTS
+# and the plumbing. Every key resolves to the constants above, so a run
+# with no tune artifact (or an empty override dict) is byte-identical to a
+# pre-tune checkout -- the frozen-behavior contract.
+
+TUNE_ARTIFACT = "tune_t3.json"
+INR_HIDDEN = 256           # INR MLP width (the docstring's "3x256")
+INR_DEPTH = 3              # INR hidden layers
+
+
+def tier_defaults():
+    """The current T3 hyperparameters as a dict -- candidate 0 of the
+    registered v4 search and its fallback config (EXPANSION.md)."""
+    return {"fourier_n": len(FOURIER_WAVELENGTHS_KM),
+            "fourier_min_km": float(FOURIER_WAVELENGTHS_KM[0]),
+            "inr_width": INR_HIDDEN, "inr_depth": INR_DEPTH,
+            "ft_lr": LR_FINETUNE, "mask_ratio": MASK_RATIO,
+            "ft_epochs": FINETUNE_EPOCHS}
+
+
+def _hp(cfg):
+    """Resolved hyperparameters: cfg['hp'] overrides over tier_defaults()."""
+    return dict(tier_defaults(), **((cfg or {}).get("hp") or {}))
+
+
+def fourier_wavelengths(hp):
+    """Wavelength ladder for the sub-cell Fourier features.
+
+    The default (fourier_n, fourier_min_km) pair returns the frozen
+    constant list EXACTLY (byte-identical features); tuned values give a
+    log-spaced ladder from fourier_min_km up to the same 200 km ceiling.
+    The minimum stays >= 5 km by search-space construction (tune_deep):
+    the between-sensor-hallucination hard cap is not searchable.
+    """
+    n = int(hp["fourier_n"])
+    lo = float(hp["fourier_min_km"])
+    if (n == len(FOURIER_WAVELENGTHS_KM)
+            and lo == float(FOURIER_WAVELENGTHS_KM[0])):
+        return list(FOURIER_WAVELENGTHS_KM)
+    return [float(v) for v in np.geomspace(lo, FOURIER_WAVELENGTHS_KM[-1], n)]
+
+
+def load_tuned_hp():
+    """Winning T3 config from the fieldtune artifact, or None.
+
+    Only a COMPLETED artifact counts: tune_deep keeps in-flight progress in
+    a _partial file precisely so a half-run search can never leak here.
+    The _say line names the source so no run trains on tuned
+    hyperparameters silently; absent artifact = defaults, byte-identical.
+    """
+    path = config2.artifact(TUNE_ARTIFACT)
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as fh:
+        art = json.load(fh)
+    if not art.get("completed"):
+        _say(f"field_res: tune artifact {path} incomplete -- ignoring "
+             "(defaults)")
+        return None
+    if art.get("quick"):
+        _say(f"field_res: tune artifact {path} is a QUICK smoke result -- "
+             "refusing it (defaults); a quick run is a machinery check, "
+             "never a search. Delete it and run the full fieldtune stage")
+        return None
+    hp = dict(tier_defaults(), **(art.get("winner") or {}))
+    _say(f"field_res: hyperparameters: tuned T3 config from {path} (winner "
+         f"index {art.get('winner_index')}"
+         + (", registered fallback" if art.get("winner_is_fallback") else "")
+         + ")")
+    return hp
+
+
+def _assert_encoder_parity(hp, pre_cfg, pre_path):
+    """Loud exit when the encoder checkpoint disagrees with the resolved
+    hp on a pretrain-side parameter (mask_ratio is the only searched one).
+
+    The T2 mirror lives in graph_res.finetune: a tuned winner whose
+    mask_ratio never reached the deployed fieldpre encoder must stop the
+    chain, never silently run a configuration that did not earn the
+    winning confirmation score.
+    """
+    pre_mr = float((pre_cfg or {}).get("mask_ratio", MASK_RATIO))
+    if float(hp["mask_ratio"]) != pre_mr:
+        raise SystemExit(
+            f"[aqnet2] field_res: hp mask_ratio {float(hp['mask_ratio'])} "
+            f"!= encoder checkpoint mask_ratio {pre_mr} ({pre_path}) -- "
+            f"re-run the fieldpre stage (FORCE=1) so the encoder matches "
+            f"the tuned mask ratio (tune_t3.json)")
+
+
+def _resume_mask_matches(ck_cfg, mask_ratio):
+    """True when a fieldpre resume checkpoint was pretrained with the
+    target mask_ratio. False means pretrain must discard it loudly and
+    start fresh, so the documented FORCE=1 fieldpre recovery needs no
+    manual checkpoint deletion (graph_res._resume_arch_matches mirror)."""
+    return (float((ck_cfg or {}).get("mask_ratio", MASK_RATIO))
+            == float(mask_ratio))
+
 
 def _say(msg):
     print(f"[aqnet2] {msg}", flush=True)
@@ -566,18 +666,21 @@ def _build_field_net(torch, dl_models, in_ch, n_real, base_width):
     return FieldNet()
 
 
-def _build_inr_head(torch, in_dim, hidden=256):
-    """INR point decoder: MLP (3x256) -> (r2_hat, log sigma^2)."""
+def _build_inr_head(torch, in_dim, hidden=INR_HIDDEN, depth=INR_DEPTH):
+    """INR point decoder: MLP (depth x hidden, default 3x256) ->
+    (r2_hat, log sigma^2). The default builds EXACTLY the shipped
+    Sequential (same module order, same init RNG draws), so existing
+    checkpoints keep loading."""
     nn = torch.nn
 
     class INRHead(nn.Module):
         def __init__(self):
             super().__init__()
-            self.mlp = nn.Sequential(
-                nn.Linear(in_dim, hidden), nn.SiLU(inplace=True),
-                nn.Linear(hidden, hidden), nn.SiLU(inplace=True),
-                nn.Linear(hidden, hidden), nn.SiLU(inplace=True),
-                nn.Linear(hidden, 2))
+            layers = [nn.Linear(in_dim, hidden), nn.SiLU(inplace=True)]
+            for _ in range(int(depth) - 1):
+                layers += [nn.Linear(hidden, hidden), nn.SiLU(inplace=True)]
+            layers.append(nn.Linear(hidden, 2))
+            self.mlp = nn.Sequential(*layers)
 
         def forward(self, x):
             out = self.mlp(x)
@@ -699,6 +802,7 @@ def pretrain(cfg):
     crop = int(cfg.get("crop_size") or CROP_SIZE)
     base_width = int(cfg.get("base_width") or BASE_WIDTH)
     lr = float(cfg.get("lr") or LR_PRETRAIN)
+    mask_ratio = float(_hp(cfg)["mask_ratio"])   # tuned; default MASK_RATIO
 
     data = load_or_build_stack2(quick=quick, grid_deg=cfg.get("grid_deg"),
                                 cache_path=cfg.get("stack_path"))
@@ -790,25 +894,35 @@ def pretrain(cfg):
         "grid_deg": float(data["grid_deg"]),
         "lat0": float(data["lat"][0]), "lon0": float(data["lon"][0]),
         "H": len(data["lat"]), "W": len(data["lon"]),
-        "mask_ratio": MASK_RATIO, "patch": PATCH,
+        "mask_ratio": mask_ratio, "patch": PATCH,
         "group_drop_p": GROUP_DROP_P, "lambda_disc": LAMBDA_DISC,
         "have_ctm": bool(have_ctm),
     }
 
-    last_path, best_path, state_path = _pretrain_paths(variant)
+    # _paths (tune_deep trial pretrains only): a private checkpoint triple
+    # so a trial can never overwrite the production fieldpre artifacts.
+    last_path, best_path, state_path = (cfg.get("_paths")
+                                        or _pretrain_paths(variant))
     start_epoch, best_loss = 0, float("inf")
     if cfg.get("resume") and os.path.exists(last_path):
         ck = _load_ckpt(torch, last_path, device)
-        model.load_state_dict(ck["model"])
-        if ck.get("optimizer"):
-            optimizer.load_state_dict(ck["optimizer"])
-        if ck.get("scheduler"):
-            scheduler.load_state_dict(ck["scheduler"])
-        if scaler is not None and ck.get("scaler"):
-            scaler.load_state_dict(ck["scaler"])
-        _rng_restore(torch, np_rng, ck.get("rng_state"))
-        start_epoch = int(ck["epoch"]) + 1
-        _say(f"fieldpre: resumed {last_path} at epoch {start_epoch}")
+        if not _resume_mask_matches(ck.get("cfg"), mask_ratio):
+            _say(f"fieldpre: resume checkpoint {last_path} was pretrained "
+                 f"with mask_ratio "
+                 f"{(ck.get('cfg') or {}).get('mask_ratio')}, target is "
+                 f"{mask_ratio} -- discarding the stale checkpoint and "
+                 f"pretraining fresh (no manual deletion needed)")
+        else:
+            model.load_state_dict(ck["model"])
+            if ck.get("optimizer"):
+                optimizer.load_state_dict(ck["optimizer"])
+            if ck.get("scheduler"):
+                scheduler.load_state_dict(ck["scheduler"])
+            if scaler is not None and ck.get("scaler"):
+                scaler.load_state_dict(ck["scaler"])
+            _rng_restore(torch, np_rng, ck.get("rng_state"))
+            start_epoch = int(ck["epoch"]) + 1
+            _say(f"fieldpre: resumed {last_path} at epoch {start_epoch}")
 
     # First checkpoint immediately — inside the 1-h protected window even
     # if the first epoch is slow (contract #7).
@@ -836,7 +950,7 @@ def pretrain(cfg):
             if n_hide is None:
                 n_hide = f"{ph * pw} patches/crop"
             hide = (torch.rand(B, 1, ph, pw, device=device)
-                    < MASK_RATIO).float()
+                    < mask_ratio).float()
             hide = hide.repeat_interleave(PATCH, dim=2)
             hide = hide.repeat_interleave(PATCH, dim=3)[..., :h, :w]
 
@@ -1040,17 +1154,20 @@ def _vault_mask(frame, folds):
     return m
 
 
-def _fourier_features(lats, rf, cf, grid_deg):
-    """Band-limited Fourier features of the sub-cell offset (8 sin/cos
-    pairs: 4 wavelengths x 2 axes). Offsets are km from the containing cell
-    center — the INR's only sub-cell position signal, so its spatial
-    expressiveness is hard-capped at 5 km wavelength."""
+def _fourier_features(lats, rf, cf, grid_deg, wavelengths=None):
+    """Band-limited Fourier features of the sub-cell offset (default 8
+    sin/cos pairs: 4 wavelengths x 2 axes). Offsets are km from the
+    containing cell center, the INR's only sub-cell position signal, so
+    its spatial expressiveness is hard-capped at the shortest wavelength
+    (>= 5 km always; fourier_wavelengths). wavelengths=None keeps the
+    frozen constant ladder."""
+    wl = (list(FOURIER_WAVELENGTHS_KM) if wavelengths is None
+          else list(wavelengths))
     dy = (rf - np.rint(rf)) * grid_deg * KM_PER_DEG_LAT
     dx = ((cf - np.rint(cf)) * grid_deg * KM_PER_DEG_LON_EQ
           * np.cos(np.radians(lats)))
-    feats = np.empty((len(rf), 4 * len(FOURIER_WAVELENGTHS_KM)),
-                     dtype=np.float32)
-    for i, lam in enumerate(FOURIER_WAVELENGTHS_KM):
+    feats = np.empty((len(rf), 4 * len(wl)), dtype=np.float32)
+    for i, lam in enumerate(wl):
         w = 2.0 * np.pi / lam
         feats[:, 4 * i + 0] = np.sin(w * dx)
         feats[:, 4 * i + 1] = np.cos(w * dx)
@@ -1091,8 +1208,8 @@ def _sample_row_features(frame, pre_ckpt, cfg):
     st_lo, st_hi = ck_cfg["group_slices"]["statics_hr"]
     base_width = int(ck_cfg["base_width"])
     n_real = int(ck_cfg["n_real"])
-    feat_dim = 7 * base_width + 2 * (st_hi - st_lo) \
-        + 4 * len(FOURIER_WAVELENGTHS_KM)
+    wl = fourier_wavelengths(_hp(cfg))
+    feat_dim = 7 * base_width + 2 * (st_hi - st_lo) + 4 * len(wl)
 
     device = _guard_device(md._resolve_device(torch, cfg.get("device", "auto")), bool(cfg.get("quick")))
     model = _build_field_net(torch, dl_models, in_ch=2 * n_real,
@@ -1114,7 +1231,7 @@ def _sample_row_features(frame, pre_ckpt, cfg):
 
     n = len(frame)
     X = np.zeros((n, feat_dim), dtype=np.float32)
-    fourier = _fourier_features(lats, rf, cf, g)
+    fourier = _fourier_features(lats, rf, cf, g, wl)
     mult = 16
     Hp, Wp = H + (mult - H % mult) % mult, W + (mult - W % mult) % mult
 
@@ -1189,6 +1306,10 @@ def _build_shared(cfg, frame=None, folds=None):
         raise SystemExit(f"[aqnet2] pretrain checkpoint missing ({pre_path})"
                          f" — run fieldpre first")
     pre_ckpt = _load_ckpt(torch, pre_path)
+    # A tuned mask_ratio that never reached the deployed encoder must stop
+    # here, loudly (the T2 arch-parity mirror) -- never run a config that
+    # did not earn the winning confirmation score.
+    _assert_encoder_parity(_hp(cfg), pre_ckpt.get("cfg"), pre_path)
     X, ok = _sample_row_features(frame, pre_ckpt, cfg)
     f2, f2_source, t1_by_k, t1 = _load_f2(frame, folds)
     y = frame["y"].to_numpy(np.float64)
@@ -1238,16 +1359,30 @@ def finetune(cfg, fold, shared=None):
     quick = bool(cfg.get("quick"))
     variant = shared["variant"]
     seed = int(cfg.get("seed", config2.SEED))
+    hp = _hp(cfg)
     epochs = int(cfg.get("ft_epochs") or (QUICK_EPOCHS if quick
-                                          else FINETUNE_EPOCHS))
+                                          else int(hp["ft_epochs"])))
     batch = int(cfg.get("ft_batch") or FINETUNE_BATCH)
-    lr = float(cfg.get("ft_lr") or LR_FINETUNE)
+    lr = float(cfg.get("ft_lr") or hp["ft_lr"])
 
-    out_path = _finetune_path(variant, k, j)
+    # _out_path (tune_deep trials only): a private checkpoint path so a
+    # trial head can never overwrite a production fieldres head.
+    out_path = cfg.get("_out_path") or _finetune_path(variant, k, j)
     if (os.path.exists(out_path) and not cfg.get("refit")
             and os.environ.get("FORCE") != "1"):
-        _say(f"fieldres f{k}_{j}: {os.path.basename(out_path)} exists -- skip")
-        return out_path
+        stale = False
+        if cfg.get("tune_hash") is not None:
+            # tune_deep trial: only a checkpoint whose stored candidate
+            # hash matches the current draw may satisfy the skip; anything
+            # else is provenance drift and rebuilds.
+            prev_cfg = _load_ckpt(torch, out_path).get("cfg") or {}
+            stale = prev_cfg.get("tune_hash") != cfg["tune_hash"]
+        if not stale:
+            _say(f"fieldres f{k}_{j}: {os.path.basename(out_path)} exists "
+                 f"-- skip")
+            return out_path
+        _say(f"fieldres f{k}_{j}: stale trial checkpoint (candidate hash "
+             f"mismatch) -- rebuilding {os.path.basename(out_path)}")
 
     inner_k = shared["inner"].get(k)
     if inner_k is None:
@@ -1255,9 +1390,18 @@ def finetune(cfg, fold, shared=None):
     frame = shared["frame"]
     # Fold-k chain's own residual target when available (audit fix).
     r2_tgt = shared.get("r2_by_k", {}).get(int(k), shared["r2"])
+    tr_folds = cfg.get("_train_inner_folds")
+    if tr_folds is not None:
+        # tune_deep trial: train strictly on the listed inner folds (the
+        # registered SELECTION folds); outer fold k and the vault stay
+        # excluded exactly as in the default expression below.
+        inner_sel = np.isin(inner_k, np.asarray(sorted(tr_folds),
+                                                dtype=np.int64))
+    else:
+        inner_sel = (inner_k != j) & (inner_k >= 0)
     tr = (shared["ok"] & np.isfinite(r2_tgt) & np.isfinite(shared["w"])
           & (shared["w"] > 0) & ~shared["vault"]
-          & (shared["outer"] != k) & (inner_k != j) & (inner_k >= 0))
+          & (shared["outer"] != k) & inner_sel)
     if variant == "temporal":
         tr &= (frame["date"] < pd.Timestamp(config2.TEMPORAL_CUTOFF)
                ).to_numpy()
@@ -1275,7 +1419,8 @@ def finetune(cfg, fold, shared=None):
     device = _guard_device(md._resolve_device(torch, cfg.get("device", "auto")), bool(cfg.get("quick")))
     torch.manual_seed(seed + 1000 * k + j)
     in_dim = shared["X"].shape[1]
-    head = _build_inr_head(torch, in_dim).to(device)
+    head = _build_inr_head(torch, in_dim, hidden=int(hp["inr_width"]),
+                           depth=int(hp["inr_depth"])).to(device)
     optimizer = torch.optim.AdamW(head.parameters(), lr=lr,
                                   weight_decay=WEIGHT_DECAY)
     scheduler, _warm = md._make_scheduler(torch, optimizer, epochs)
@@ -1292,12 +1437,24 @@ def finetune(cfg, fold, shared=None):
                 "in_dim": in_dim, "n_train_rows": n_tr,
                 "pretrain_ckpt": shared["pre_path"],
                 "f2_source": shared["f2_source"], "seed": seed}
+    if cfg.get("hp"):
+        # Recorded only when overrides are live, so an untuned run's
+        # checkpoints stay byte-identical; predict_oof rebuilds tuned
+        # heads at the width/depth stored here.
+        ckpt_cfg["hp"] = {kk: v for kk, v in hp.items()}
+    if cfg.get("tune_hash"):
+        # tune_deep trial provenance: the skip above honors only this.
+        ckpt_cfg["tune_hash"] = cfg["tune_hash"]
     # In-progress checkpoints go to a .part path: out_path itself exists
     # ONLY when the head is fully trained, so the exists-means-complete skip
     # above stays truthful across embers preemptions (review finding: a
     # half-trained head saved AT out_path would be mistaken for done).
     part_path = out_path + ".part"
     last_save = time.time()
+    # _early_stop (tune_deep trials only): break on a training-loss
+    # plateau. Absent from every production cfg = no behavior change.
+    es = cfg.get("_early_stop")
+    es_best, es_wait = float("inf"), 0
     for ep in range(epochs):
         head.train()
         rng.shuffle(order)
@@ -1327,6 +1484,47 @@ def finetune(cfg, fold, shared=None):
         _save_ckpt(torch, part_path, head, optimizer, scheduler, None, ep,
                    ckpt_cfg, [k, j])
         last_save = time.time()
+        if es is not None:
+            ep_loss = tot / max(nb, 1)
+            if es_best - ep_loss > float(es.get("min_delta", 0.0)):
+                es_best, es_wait = ep_loss, 0
+            else:
+                es_wait += 1
+                if es_wait >= int(es.get("patience", 5)):
+                    _say(f"fieldres f{k}_{j} early stop at epoch "
+                         f"{ep + 1}/{epochs} (loss plateau)")
+                    break
+
+    # _eval_inner_folds (tune_deep trials only): weighted R^2 on the listed
+    # inner folds -- the registered CONFIRMATION score. Same row filters as
+    # training (stack-covered, finite target/weight, non-vault, outer != k),
+    # different inner folds; stored in the checkpoint cfg for the driver.
+    ev_folds = cfg.get("_eval_inner_folds")
+    if ev_folds is not None:
+        ev = (shared["ok"] & np.isfinite(r2_tgt) & np.isfinite(shared["w"])
+              & (shared["w"] > 0) & ~shared["vault"]
+              & (shared["outer"] != k)
+              & np.isin(inner_k, np.asarray(sorted(ev_folds),
+                                            dtype=np.int64)))
+        r2v = float("nan")
+        if ev.any():
+            head.eval()
+            Xe = torch.from_numpy(shared["X"][ev])
+            mu_all = np.empty(int(ev.sum()), dtype=np.float64)
+            with torch.no_grad():
+                for lo in range(0, len(mu_all), 65536):
+                    mu, _ls = head(Xe[lo:lo + 65536].to(device))
+                    mu_all[lo:lo + 65536] = mu.float().cpu().numpy()
+            yv, wv = r2_tgt[ev], shared["w"][ev]
+            ybar = np.average(yv, weights=wv)
+            ss_res = np.average((yv - mu_all) ** 2, weights=wv)
+            ss_tot = np.average((yv - ybar) ** 2, weights=wv)
+            r2v = float(1.0 - ss_res / max(ss_tot, 1e-12))
+        ckpt_cfg["heldout_r2"] = r2v
+        _say(f"fieldres f{k}_{j}: held-out confirmation weighted R^2 = "
+             f"{r2v:.4f} (n={int(ev.sum()):,})")
+        _save_ckpt(torch, part_path, head, optimizer, scheduler, None, ep,
+                   ckpt_cfg, [k, j])
     os.replace(part_path, out_path)
     return out_path
 
@@ -1374,7 +1572,11 @@ def predict_oof(frame, folds, ckpts, cfg=None, shared=None):
     heads = {}
     for (kk, jj), path in sorted(fold_ckpts.items()):
         ck = _load_ckpt(torch, path, device)
-        head = _build_inr_head(torch, in_dim)
+        # Head shape from the checkpoint's own hp (absent = defaults), so
+        # a tuned head reloads at the width/depth it was trained with.
+        hpc = _hp({"hp": (ck.get("cfg") or {}).get("hp")})
+        head = _build_inr_head(torch, in_dim, hidden=int(hpc["inr_width"]),
+                               depth=int(hpc["inr_depth"]))
         head.load_state_dict(ck["model"])
         head.eval()
         heads[(kk, jj)] = head
@@ -1469,6 +1671,9 @@ def run_fieldpre(cfg):
     if os.path.exists(state_path) and os.environ.get("FORCE") != "1":
         _say(f"{state_path} exists (FORCE=1 to re-run) -- skip")
         return 0
+    hp = load_tuned_hp()
+    if hp and not cfg.get("hp"):
+        cfg["hp"] = hp        # mask_ratio must match the tuned encoder
     t0 = time.time()
     pretrain(cfg)
     _say(f"── stage fieldpre done in {time.time() - t0:.1f}s")
@@ -1481,6 +1686,9 @@ def run_fieldres(cfg):
     if os.path.exists(out_path) and os.environ.get("FORCE") != "1":
         _say(f"{out_path} exists (FORCE=1 to re-run) -- skip")
         return 0
+    hp = load_tuned_hp()
+    if hp and not cfg.get("hp"):
+        cfg["hp"] = hp
     t0 = time.time()
     shared = _build_shared(cfg)
     quick = bool(cfg.get("quick"))
@@ -1497,6 +1705,9 @@ def run_fieldres(cfg):
 
 def run_predict(cfg):
     _banner("fieldres-predict")
+    hp = load_tuned_hp()
+    if hp and not cfg.get("hp"):
+        cfg["hp"] = hp        # fourier ladder parity with the tuned heads
     variant = _variant_tag(cfg.get("variant"))
     ckpts = {}
     n_outer = 2 if cfg.get("quick") else int(config2.OUTER_N_FOLDS)

@@ -6,7 +6,8 @@
 # embers preemption is CANCEL-not-requeue — a killed chain head means
 # resubmitting THIS script is the recovery path (idempotent by design).
 #
-# Long GPU trainings run as afterany self-chains of 3 x 8 h links: link N+1
+# Long GPU trainings run as afterany self-chains of 3 x 8 h links (the
+# graphtune/fieldtune searches: 3 x 24 h links): link N+1
 # starts whenever link N ends (success, timeout, or preemption mid-link),
 # exits 0 fast if the stage sentinel already exists, and otherwise resumes
 # from last.pt. Cross-stage edges stay afterok so a genuinely failed stage
@@ -86,9 +87,11 @@ PRI=$(sbatch --parsable --dependency=afterok:$CAL "$S/aq2-priors.sbatch")
 FEAT=$(sbatch --parsable --dependency=afterok:$PRI "$S/aq2-features.sbatch")
 SKEL=$(sbatch --parsable --dependency=afterok:$FEAT "$S/aq2-skeleton.sbatch")
 GPRE=$(chain3 "$SKEL" "$S/aq2-graphpre.sbatch")
-GRES=$(chain3 "$GPRE" "$S/aq2-graphres.sbatch")
+GTUNE=$(chain3 "$GPRE" "$S/aq2-graphtune.sbatch")
+GRES=$(chain3 "$GTUNE" "$S/aq2-graphres.sbatch")
 FPRE=$(chain3 "$GRES" "$S/aq2-fieldpre.sbatch")
-FRES=$(chain3 "$FPRE" "$S/aq2-fieldres.sbatch")
+FTUNE=$(chain3 "$FPRE" "$S/aq2-fieldtune.sbatch")
+FRES=$(chain3 "$FTUNE" "$S/aq2-fieldres.sbatch")
 GATE=$(sbatch --parsable --dependency=afterok:$FRES "$S/aq2-gates.sbatch")
 EXC=$(sbatch --parsable --dependency=afterok:$GATE "$S/aq2-exceed.sbatch")
 UQ=$(sbatch --parsable --dependency=afterok:$EXC "$S/aq2-uq.sbatch")
@@ -101,5 +104,6 @@ echo "submitted (domain=$AQNET2_DOMAIN pa_source=$AQNET2_PA_SOURCE" \
      "tag=${AQNET2_ARTIFACTS_TAG:-<unset>} seed_offset=$AQNET2_SEED_OFFSET):" \
      "audit=$AUDIT data-pa=$DATAPA data=$DATA statics=$STAT" \
      "colocate=$COLO calibrate=$CAL priors=$PRI features=$FEAT" \
-     "skeleton=$SKEL graphpre..=$GPRE graphres..=$GRES fieldpre..=$FPRE" \
-     "fieldres..=$FRES gates=$GATE exceed=$EXC uq=$UQ validate=$VAL"
+     "skeleton=$SKEL graphpre..=$GPRE graphtune..=$GTUNE graphres..=$GRES" \
+     "fieldpre..=$FPRE fieldtune..=$FTUNE fieldres..=$FRES gates=$GATE" \
+     "exceed=$EXC uq=$UQ validate=$VAL"

@@ -28,7 +28,7 @@ AQNET2_DIR = os.path.dirname(_TESTS_DIR)
 MODULES = ("config2", "folds2", "fetchers2", "priors", "skeleton",
            "graph_res", "field_res", "compose", "calibrate", "colocate",
            "frame2", "exceed", "uq", "validate2", "pipeline2",
-           "pa_v4_ingest")
+           "pa_v4_ingest", "tune_deep")
 
 
 def test_blocker_actually_blocks(heavy_dep_blocker):

@@ -579,13 +579,14 @@ def build_graph(lat, lon, elev, elev_ok, is_station, u_mat, v_mat,
     """
     n_units = len(lat)
     n_st = int(is_station.sum())
+    knn_k = int(_hp(cfg)["knn_k"])   # tuned in-degree; default = KNN_K
     lat0 = float(np.nanmean(lat[:n_st]))
     lon0 = float(np.nanmean(lon[:n_st]))
     x, y = _equirect_xy_km(lat, lon, lat0, lon0)
 
     key_src = "|".join([
         ",".join(st_unit_ids.tolist()), ",".join(q_unit_ids.tolist()),
-        f"k{KNN_K}a{N_AIRSHEDS}c{CROSS_MAX_KM}e{CROSS_MAX_DELEV_M}",
+        f"k{knn_k}a{N_AIRSHEDS}c{CROSS_MAX_KM}e{CROSS_MAX_DELEV_M}",
         f"seed{config2.SEED}", str(cfg.get("quick", False)),
         str(cfg.get("variant", "full"))])
     key = hashlib.sha256(key_src.encode()).hexdigest()[:16]
@@ -653,7 +654,7 @@ def build_graph(lat, lon, elev, elev_ok, is_station, u_mat, v_mat,
                              d_elev < CROSS_MAX_DELEV_M, True)
         keep = same | ((di < CROSS_MAX_KM) & elev_gate)
         ci, di = ci[keep], di[keep]
-        take = np.argsort(di, kind="stable")[:KNN_K]
+        take = np.argsort(di, kind="stable")[:knn_k]
         for s in ci[take]:
             src_l.append(int(s))
             dst_l.append(i)
@@ -676,7 +677,7 @@ def build_graph(lat, lon, elev, elev_ok, is_station, u_mat, v_mat,
         "same_airshed": (airshed[edge_src] == airshed[edge_dst])
         .astype(np.float32),
         "airshed": airshed,
-        "nb_idx": _neighbor_lists(edge_src, edge_dst, n_units),
+        "nb_idx": _neighbor_lists(edge_src, edge_dst, n_units, knn_k),
     }
     _save_npz_atomic(cache, **g)
     _say(f"graph built: {len(edge_src):,} edges, {k_air} airsheds "
@@ -685,12 +686,13 @@ def build_graph(lat, lon, elev, elev_ok, is_station, u_mat, v_mat,
     return g
 
 
-def _neighbor_lists(edge_src, edge_dst, n_units):
-    """[n_units, KNN_K] in-neighbor station indices, -1 padded."""
-    nb = np.full((n_units, KNN_K), -1, dtype=np.int64)
+def _neighbor_lists(edge_src, edge_dst, n_units, k=KNN_K):
+    """[n_units, k] in-neighbor station indices, -1 padded."""
+    k = int(k)
+    nb = np.full((n_units, k), -1, dtype=np.int64)
     fill = np.zeros(n_units, dtype=np.int64)
     for s, d in zip(edge_src, edge_dst):
-        if fill[d] < KNN_K:
+        if fill[d] < k:
             nb[d, fill[d]] = s
             fill[d] += 1
     return nb
@@ -782,19 +784,24 @@ if HAS_TORCH:
 
     class _Block(nn.Module):
         """Pre-LN transformer block: LN -> shielded attention -> residual;
-        LN -> FFN -> residual (DESIGN S7 architecture)."""
+        LN -> FFN -> residual (DESIGN S7 architecture). dropout regularizes
+        both residual branches; the default 0.0 resolves to nn.Identity so
+        an untuned model neither changes structure keys nor consumes RNG
+        draws (byte-identical contract)."""
 
-        def __init__(self, d, heads, d_ff):
+        def __init__(self, d, heads, d_ff, dropout=0.0):
             super().__init__()
             self.ln1 = nn.LayerNorm(d)
             self.attn = _EdgeAttention(d, heads)
             self.ln2 = nn.LayerNorm(d)
             self.ffn = nn.Sequential(nn.Linear(d, d_ff), nn.SiLU(),
                                      nn.Linear(d_ff, d))
+            self.drop1 = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
+            self.drop2 = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
 
         def forward(self, x, src, dst, ebias):
-            x = x + self.attn(self.ln1(x), src, dst, ebias)
-            return x + self.ffn(self.ln2(x))
+            x = x + self.drop1(self.attn(self.ln1(x), src, dst, ebias))
+            return x + self.drop2(self.ffn(self.ln2(x)))
 
     class GraphResNet(nn.Module):
         """Masked graph-attention residual network (~1.5M params at the
@@ -809,7 +816,7 @@ if HAS_TORCH:
         """
 
         def __init__(self, n_met, d=D_MODEL, heads=N_HEADS,
-                     layers=N_LAYERS, d_ff=D_FF):
+                     layers=N_LAYERS, d_ff=D_FF, dropout=0.0):
             super().__init__()
             self.obs_mlp = nn.Sequential(
                 nn.Linear(2 * OBS_WINDOW, D_OBS), nn.SiLU(),
@@ -825,7 +832,7 @@ if HAS_TORCH:
             self.edge_mlp = nn.Sequential(        # shared across layers
                 nn.Linear(6, 64), nn.SiLU(), nn.Linear(64, heads))
             self.blocks = nn.ModuleList(
-                [_Block(d, heads, d_ff) for _ in range(layers)])
+                [_Block(d, heads, d_ff, dropout) for _ in range(layers)])
             self.ln_out = nn.LayerNorm(d)
             self.head = nn.Linear(d, 4)           # mu, logvar, q05, q95
             n_par = sum(p.numel() for p in self.parameters())
@@ -860,6 +867,14 @@ if HAS_TORCH:
             logvar = out[:, 1].clamp(-LOGVAR_CLAMP, LOGVAR_CLAMP)
             q05, q95 = out[:, 2], out[:, 3]
             return mu, logvar, q05, q95, deg > 0
+
+    def _make_model(n_met, hp):
+        """GraphResNet at the resolved hyperparameters. Defaults are the
+        exact module constants, so untuned construction is unchanged."""
+        return GraphResNet(n_met=n_met, d=int(hp["d_model"]),
+                           heads=int(hp["n_heads"]),
+                           layers=int(hp["n_layers"]), d_ff=int(hp["d_ff"]),
+                           dropout=float(hp["dropout"]))
 
 
 # -- Training scaffolding (v1 models_deep idioms, extended per contract) -----
@@ -1213,6 +1228,78 @@ def _sample_pretrain_mask(ctx, t, rng, obs_st):
     return np.sort(np.fromiter(chosen, dtype=np.int64))
 
 
+# -- Tunable hyperparameters (registered v4 search, EXPANSION.md) ------------
+#
+# tune_deep.py owns the frozen search space; this module owns the DEFAULTS
+# and the plumbing. Every key resolves to the module constants above, so a
+# run with no tune artifact (or an empty override dict) is byte-identical
+# to a pre-tune checkout -- the frozen-behavior contract.
+
+TUNE_ARTIFACT = "tune_t2.json"
+ARCH_HP_KEYS = ("d_model", "n_heads", "n_layers", "d_ff", "dropout")
+
+
+def tier_defaults():
+    """The current T2 hyperparameters as a dict -- candidate 0 of the
+    registered v4 search and its fallback config (EXPANSION.md)."""
+    return {"d_model": D_MODEL, "n_heads": N_HEADS, "n_layers": N_LAYERS,
+            "d_ff": D_FF, "dropout": 0.0, "lr_finetune": LR_FINETUNE,
+            "weight_decay": WEIGHT_DECAY, "knn_k": KNN_K,
+            "finetune_epochs": FINETUNE_EPOCHS}
+
+
+def _hp(cfg):
+    """Resolved hyperparameters: cfg['hp'] overrides over tier_defaults()."""
+    return dict(tier_defaults(), **((cfg or {}).get("hp") or {}))
+
+
+def arch_of(hp):
+    """Canonical architecture sub-dict, type-normalized so comparisons
+    survive a json round-trip (checkpoint cfg vs live cfg)."""
+    return {"d_model": int(hp["d_model"]), "n_heads": int(hp["n_heads"]),
+            "n_layers": int(hp["n_layers"]), "d_ff": int(hp["d_ff"]),
+            "dropout": float(hp["dropout"])}
+
+
+def _resume_arch_matches(ck, hp):
+    """True when a resume checkpoint's recorded architecture equals the
+    target hp architecture. False means the caller must discard the stale
+    checkpoint loudly and pretrain fresh: load_state_dict into a
+    mismatched model raises a shape error, which would turn the
+    documented FORCE=1 graphpre recovery into a crash loop."""
+    ck_arch = arch_of(_hp({"hp": (ck.get("cfg") or {}).get("hp")}))
+    return ck_arch == arch_of(hp)
+
+
+def load_tuned_hp():
+    """Winning T2 config from the graphtune artifact, or None.
+
+    Only a COMPLETED artifact counts: tune_deep keeps in-flight progress in
+    a _partial file precisely so a half-run search can never leak here.
+    The _say line names the source so no run trains on tuned
+    hyperparameters silently; absent artifact = defaults, byte-identical.
+    """
+    path = config2.artifact(TUNE_ARTIFACT)
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as fh:
+        art = json.load(fh)
+    if not art.get("completed"):
+        _say(f"tune artifact {path} incomplete -- ignoring (defaults)")
+        return None
+    if art.get("quick"):
+        _say(f"tune artifact {path} is a QUICK smoke result -- refusing "
+             f"it (defaults); a quick run is a machinery check, never a "
+             f"search. Delete it and run the full graphtune stage")
+        return None
+    hp = dict(tier_defaults(), **(art.get("winner") or {}))
+    _say(f"hyperparameters: tuned T2 config from {path} (winner index "
+         f"{art.get('winner_index')}"
+         + (", registered fallback" if art.get("winner_is_fallback") else "")
+         + ")")
+    return hp
+
+
 # -- cfg ---------------------------------------------------------------------
 
 def make_cfg(stage="graphpre", quick=False, variant="full", resume=False,
@@ -1334,12 +1421,12 @@ def _train_day_list(ctx, obs_st, min_obs=5):
     return days.astype(np.int64)
 
 
-def _fit_setup(cfg, ctx, model, lr, epochs):
+def _fit_setup(cfg, ctx, model, lr, epochs, weight_decay=WEIGHT_DECAY):
     device = _resolve_device(cfg.get("device", "auto"), quick=bool(cfg.get("quick")))
     torch.manual_seed(cfg["seed"])
     model = model.to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr,
-                            weight_decay=WEIGHT_DECAY)
+                            weight_decay=weight_decay)
     sched = _make_scheduler(opt, epochs)
     use_amp = device.type == "cuda"
     scaler = _make_grad_scaler(use_amp)
@@ -1393,7 +1480,7 @@ def pretrain(cfg):
                     "obs_source": "pa_raw"})
 
     torch.manual_seed(cfg["seed"])       # seeded BEFORE weight init
-    model = GraphResNet(n_met=ctx["met"].shape[2])
+    model = _make_model(ctx["met"].shape[2], _hp(cfg))
     device, model, opt, sched, scaler, use_amp = _fit_setup(
         cfg, ctx, model, LR_PRETRAIN, epochs)
     rng = np.random.default_rng(cfg["seed"])
@@ -1401,6 +1488,13 @@ def pretrain(cfg):
     start_epoch = 0
     if cfg.get("resume"):
         ck = load_checkpoint(stem)
+        if ck is not None and not _resume_arch_matches(ck, _hp(cfg)):
+            ck_arch = arch_of(_hp({"hp": (ck.get("cfg") or {}).get("hp")}))
+            _say(f"pretrain[{stem}]: resume checkpoint architecture "
+                 f"{ck_arch} != target architecture {arch_of(_hp(cfg))} "
+                 f"-- discarding the stale checkpoint and pretraining "
+                 f"fresh (no manual deletion needed)")
+            ck = None
         if ck is not None:
             model.load_state_dict(ck["model"])
             if ck["optimizer"]:
@@ -1487,6 +1581,25 @@ def pretrain(cfg):
 
 # -- Public API: finetune ----------------------------------------------------
 
+def _trial_ckpt_complete(ck, cfg, epochs):
+    """True when a loaded checkpoint satisfies the exists-means-finished
+    skip. tune_deep trials additionally require the stored candidate hash
+    to match the current one and, when the trial carries an eval, the
+    confirmation score to be present: a preemption between the last-epoch
+    save and the eval save must read as INCOMPLETE (rebuild), never as a
+    permanently failed trial. Production cfgs carry neither key, so their
+    skip is byte-identical to before."""
+    if ck is None or int(ck["epoch"]) < int(epochs) - 1:
+        return False
+    ck_cfg = ck.get("cfg") or {}
+    if (cfg.get("tune_hash") is not None
+            and ck_cfg.get("tune_hash") != cfg["tune_hash"]):
+        return False
+    if cfg.get("_eval_heldout") and "heldout_r2" not in ck_cfg:
+        return False
+    return True
+
+
 def finetune(cfg, fold):
     """Stage `graphres`, one (outer k, inner j) member of the
     fold-assignment epistemic ensemble. fold = (k, j).
@@ -1507,11 +1620,22 @@ def finetune(cfg, fold):
     suffix = _variant_suffix(cfg)
     stem = cfg.get("_stem") or f"graphres{suffix}_f{k}_{j}"
     epochs = int(cfg["epochs"])
+    hp = _hp(cfg)
 
     ck0 = load_checkpoint(stem) if (cfg.get("resume")
                                     or os.environ.get("FORCE") != "1") \
         else None
-    if (ck0 is not None and int(ck0["epoch"]) >= epochs - 1
+    if (ck0 is not None and cfg.get("tune_hash") is not None
+            and (ck0.get("cfg") or {}).get("tune_hash")
+            != cfg["tune_hash"]):
+        # tune_deep trial: the checkpoint belongs to a different candidate
+        # (provenance drift) -- rebuild, never resume or score it.
+        _say(f"finetune[{stem}]: checkpoint candidate hash "
+             f"{(ck0.get('cfg') or {}).get('tune_hash')} != current "
+             f"{cfg['tune_hash']} -- discarding the stale trial "
+             f"checkpoint")
+        ck0 = None
+    if (_trial_ckpt_complete(ck0, cfg, epochs)
             and os.environ.get("FORCE") != "1"):
         _say(f"finetune[{stem}]: already finished (epoch {ck0['epoch']}) "
              f"-- skip (FORCE=1 to redo)")
@@ -1527,6 +1651,13 @@ def finetune(cfg, fold):
     assert pre["cfg"].get("stations_sha") == ctx["stations_sha"], (
         "pretrain checkpoint station universe differs from the current "
         "context -- stale graphpre artifact (FORCE=1 the graphpre stage)")
+    pre_arch = arch_of(_hp({"hp": pre["cfg"].get("hp")}))
+    if arch_of(hp) != pre_arch:
+        raise SystemExit(
+            f"[aqnet2] graph_res: fine-tune architecture {arch_of(hp)} != "
+            f"pretrain checkpoint architecture {pre_arch} -- re-run the "
+            "graphpre stage (FORCE=1) so the pretrained weights match the "
+            "tuned architecture (tune_t2.json)")
 
     r1_mat, w_mat = _t1_residual(ctx, k)
     r_mu, r_sd = _r1_norm_stats(ctx, [k])
@@ -1536,10 +1667,22 @@ def finetune(cfg, fold):
                                 f"inner_fold[{k}]")
     outer = _unit_map_from_rows(ctx, folds["outer_fold"], "outer_fold")
     is_st = ctx["is_station"]
-    train_unit = (inner >= 0) & (inner != j) & (outer != k)
+    tr_folds = cfg.get("_train_inner_folds")
+    ev_folds = cfg.get("_eval_inner_folds")
+    if tr_folds is not None:
+        # tune_deep trial: train strictly on the listed inner folds (the
+        # registered SELECTION folds); outer fold k and the vault stay
+        # excluded exactly as in the default expression (vault units carry
+        # inner == -1 and never enter the node universe at all).
+        train_unit = (np.isin(inner, np.asarray(sorted(tr_folds),
+                                                dtype=np.int64))
+                      & (outer != k))
+    else:
+        train_unit = (inner >= 0) & (inner != j) & (outer != k)
     train_pa = train_unit & is_st
     train_aqs = train_unit & ~is_st
-    heldout = inner == j
+    heldout = (np.isin(inner, np.asarray(sorted(ev_folds), dtype=np.int64))
+               if ev_folds is not None else (inner == j))
     _say(f"finetune[{stem}]: {int(train_pa.sum())} train PA units, "
          f"{int(train_aqs.sum())} train AQS units, "
          f"{int(heldout.sum())} held-out inner-{j} units")
@@ -1552,10 +1695,11 @@ def finetune(cfg, fold):
                     "r1_mu": r_mu, "r1_sd": r_sd,
                     "pretrain_stem": init})
 
-    model = GraphResNet(n_met=ctx["met"].shape[2])
+    model = _make_model(ctx["met"].shape[2], hp)
     model.load_state_dict(pre["model"])
     device, model, opt, sched, scaler, use_amp = _fit_setup(
-        cfg, ctx, model, LR_FINETUNE, epochs)
+        cfg, ctx, model, float(hp["lr_finetune"]), epochs,
+        weight_decay=float(hp["weight_decay"]))
     rng = np.random.default_rng(cfg["seed"] + 1000 * k + j)
 
     start_epoch = 0
@@ -1598,6 +1742,10 @@ def finetune(cfg, fold):
     last_save = time.time()
     path = _ckpt_path(stem)
     fold_id = f"f{k}_{j}"
+    # _early_stop (tune_deep trials only): break on a training-loss
+    # plateau. Absent from every production cfg = no behavior change.
+    es = cfg.get("_early_stop")
+    es_best, es_wait = float("inf"), 0
     for epoch in range(start_epoch, epochs):
         t0 = time.time()
         order = days.copy()
@@ -1654,11 +1802,26 @@ def finetune(cfg, fold):
                                 fold_id)
                 last_save = time.time()
         sched.step()
-        save_checkpoint(stem, model, opt, sched, scaler, _rng_capture(rng),
-                        epoch, run_cfg, fold_id)
-        last_save = time.time()
+        if not (cfg.get("_eval_heldout") and epoch >= epochs - 1):
+            # tune_deep trials defer the last-epoch save to the single
+            # post-eval write below, so a trial checkpoint only ever
+            # reads complete WITH its confirmation score (the T3
+            # part-path pattern); production saves every epoch as before.
+            save_checkpoint(stem, model, opt, sched, scaler,
+                            _rng_capture(rng), epoch, run_cfg, fold_id)
+            last_save = time.time()
         _say(f"finetune[{stem}] epoch {epoch + 1}/{epochs} "
              f"loss {tot / max(nb, 1):.4f} ({time.time() - t0:.0f}s)")
+        if es is not None:
+            ep_loss = tot / max(nb, 1)
+            if es_best - ep_loss > float(es.get("min_delta", 0.0)):
+                es_best, es_wait = ep_loss, 0
+            else:
+                es_wait += 1
+                if es_wait >= int(es.get("patience", 5)):
+                    _say(f"finetune[{stem}] early stop at epoch "
+                         f"{epoch + 1}/{epochs} (loss plateau)")
+                    break
 
     if cfg.get("_eval_heldout"):
         r2 = _eval_heldout_r2(cfg, ctx, model, device, stats, run_cfg,
@@ -1781,7 +1944,9 @@ def predict_oof(frame, folds, ckpts, cfg=None, dest=None):
         stats = ccfg["norm_stats"]
         r_mu = float(ccfg.get("r1_mu", 0.0))
         r_sd = float(ccfg.get("r1_sd", 1.0))
-        model = GraphResNet(n_met=int(ccfg["n_met"]))
+        # Architecture from the checkpoint's own hp (absent = defaults),
+        # so a tuned member reloads at the dims it was trained with.
+        model = _make_model(int(ccfg["n_met"]), _hp({"hp": ccfg.get("hp")}))
         model.load_state_dict(ck["model"])
         model = model.to(device)
         model.eval()
@@ -2006,6 +2171,9 @@ def run_graphpre(args):
         _say(f"{marker} exists (FORCE=1 to rebuild) -- skip")
         return 0
     _banner("graphpre")
+    hp = load_tuned_hp()
+    if hp and not cfg.get("hp"):
+        cfg["hp"] = hp        # architecture must match the residual stage
     t0 = time.time()
     if not (done and os.environ.get("FORCE") != "1"):
         pretrain(cfg)
@@ -2029,6 +2197,11 @@ def run_graphres(args):
         _say(f"{dest} exists (FORCE=1 to rebuild) -- skip")
         return 0
     _banner("graphres")
+    hp = load_tuned_hp()
+    if hp and not cfg.get("hp"):
+        cfg["hp"] = hp
+        if args.epochs is None and not cfg["quick"]:
+            cfg["epochs"] = int(hp["finetune_epochs"])
     t0 = time.time()
     ctx = _get_ctx(cfg)
     ks = _outer_ks(ctx["folds"], cfg["quick"])
@@ -2055,6 +2228,9 @@ def run_predict(args):
         _say(f"{dest} exists (FORCE=1 to rebuild) -- skip")
         return 0
     _banner("graphres-predict")
+    hp = load_tuned_hp()
+    if hp and not cfg.get("hp"):
+        cfg["hp"] = hp        # graph/context parity with the tuned members
     ctx = _get_ctx(cfg)
     ks = _outer_ks(ctx["folds"], cfg["quick"])
     js = list(range(int(config2.INNER_N_FOLDS)))

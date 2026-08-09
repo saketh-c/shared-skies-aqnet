@@ -23,6 +23,9 @@ artifacts/v3 for west7; AQNET2_DOMAIN selects, config2 resolves):
   skeleton   T1 GPBoost (candidate-B escape documented) — oof_tier1.npz.
   graphpre / graphres    T2 graph-attention residual — oof_tier2.npz.
   fieldpre / fieldres    T3 masked-MAE field + INR decoder — oof_tier3.npz.
+  graphtune / fieldtune  registered v4 deep-tier hyperparameter search
+             (tune_deep.py; EXPANSION.md protocol) -- tune_t2.json /
+             tune_t3.json, consumed by the residual stages when present.
   gates      the composition harness: compose.fit_gate/apply_gates ladder
              (T1 -> +T2 -> +T3 -> T4 recal), gates.json + t4_params.json +
              oof_composite.npz.
@@ -123,8 +126,10 @@ SENTINELS = {
                  "nbr_overrides_outer.npz", "oof_tier0.npz"),
     "skeleton": ("oof_tier1.npz",),
     "graphpre": ("graph_pretrain.json",),
+    "graphtune": ("tune_t2.json",),
     "graphres": ("oof_tier2.npz",),
     "fieldpre": ("field_pretrain.json",),
+    "fieldtune": ("tune_t3.json",),
     "fieldres": ("oof_tier3.npz",),
     "gates": ("gates.json", "oof_composite.npz"),
     "exceed": ("exceed_model.json", "oof_exceed.npz"),
@@ -1159,6 +1164,33 @@ def stage_graphpre(args):
     _stage_pretrain(args, "graph_res", "graphpre")
 
 
+def _stage_tune(args, stage, tier):
+    """graphtune/fieldtune: the registered v4 deep-tier hyperparameter
+    search (tune_deep.py; EXPANSION.md). Sentinel = the completed tune
+    artifact; tune_deep keeps in-flight progress in a _partial file, so a
+    preempted search resumes on resubmission without ever satisfying the
+    sentinel early. The residual stages consume the artifact when it
+    exists; absent artifact = the registered default config. Under
+    --quick tune_deep writes tune_t{2,3}_quick.json instead (a smoke
+    artifact both tiers' loaders refuse), so the production sentinel can
+    never be satisfied by a smoke; the stage then re-enters on later
+    quick invocations and tune_deep's own quick-artifact skip makes that
+    re-entry a fast no-op."""
+    if _skip_if_done(stage):
+        return
+    mod = _import_stage_module("tune_deep", stage)
+    argv = ["--tier", tier]
+    if args.quick:
+        argv.append("--quick")
+    rc = mod.main(argv)
+    if rc not in (0, None):
+        raise SystemExit(f"[aqnet2] {stage}: tune_deep.main returned {rc}")
+
+
+def stage_graphtune(args):
+    _stage_tune(args, "graphtune", "t2")
+
+
 def stage_graphres(args):
     _stage_residual(args, "graph_res", "graphres", "graphpre",
                     "oof_tier2.npz")
@@ -1166,6 +1198,10 @@ def stage_graphres(args):
 
 def stage_fieldpre(args):
     _stage_pretrain(args, "field_res", "fieldpre")
+
+
+def stage_fieldtune(args):
+    _stage_tune(args, "fieldtune", "t3")
 
 
 def stage_fieldres(args):
@@ -1744,8 +1780,10 @@ _STAGES = {
     "features": stage_features,
     "skeleton": stage_skeleton,
     "graphpre": stage_graphpre,
+    "graphtune": stage_graphtune,
     "graphres": stage_graphres,
     "fieldpre": stage_fieldpre,
+    "fieldtune": stage_fieldtune,
     "fieldres": stage_fieldres,
     "gates": stage_gates,
     "exceed": stage_exceed,
@@ -1756,8 +1794,8 @@ _STAGES = {
 
 _STAGE_ORDER = ["audit", "data-pa", "data", "statics", "colocate",
                 "calibrate", "priors", "features", "skeleton", "graphpre",
-                "graphres", "fieldpre", "fieldres", "gates", "exceed", "uq",
-                "validate", "export"]
+                "graphtune", "graphres", "fieldpre", "fieldtune",
+                "fieldres", "gates", "exceed", "uq", "validate", "export"]
 
 
 def main(argv=None):

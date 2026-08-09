@@ -50,7 +50,7 @@ HEAVY_DEPS = ("torch", "gpboost", "statsmodels", "lightgbm", "xgboost",
 AQNET2_MODULES = ("config2", "folds2", "fetchers2", "priors", "skeleton",
                   "graph_res", "field_res", "compose", "calibrate",
                   "colocate", "frame2", "exceed", "uq", "validate2",
-                  "pipeline2", "pa_v4_ingest")
+                  "pipeline2", "pa_v4_ingest", "tune_deep")
 
 # Synthetic frame geometry: 8 AQS sites x 10 days + 12 PA sensors x 10 days
 # = exactly 200 rows.
