@@ -248,6 +248,28 @@ def test_build_daily_integration(synth_archive):
     assert (daily.loc[daily["sensor_index"] == 1, "lat"] == 30.0).all()
 
 
+def test_build_daily_ignores_selection_tier_labels(synth_archive):
+    """Tier comes from the archive layout, never the selection column.
+
+    The real pa_selection.parquet carries pre-redesign scoping labels
+    ('hourly'/'daily') in its tier column; the fetcher assigned actual
+    tiers at run time, recorded only as the A/ or B/ subdirectory. This
+    reproduces the 2026-08-09 zero-row ingest: with those labels the old
+    code found no A/hourly/*.parquet files and skipped every sensor.
+    """
+    sel = synth_archive["selection_df"].copy()
+    sel["tier"] = ["hourly", "hourly", "daily", "daily", "hourly"]
+    daily = pa_v4_ingest.build_daily(synth_archive["archive"], sel,
+                                     "2024-06-01", "2024-06-30")
+    assert set(daily["sensor_index"]) == {1, 2, 3}
+    assert (daily.loc[daily["sensor_index"] == 1, "tier"] == "A").all()
+    assert (daily.loc[daily["sensor_index"] == 3, "tier"] == "B").all()
+    aqs = synth_archive["aqs_df"]
+    pairs = pa_v4_ingest.build_pairs_table(daily, sel, aqs)
+    assert len(pairs)
+    assert set(pairs["sensor_index"]) == {1}
+
+
 # ── Pairs ──────────────────────────────────────────────────────────────────
 
 def test_build_pairs_join_correctness(synth_archive):

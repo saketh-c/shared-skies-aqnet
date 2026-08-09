@@ -309,7 +309,7 @@ def load_selection(selection_path=None):
     """pa_selection.parquet with the columns this module relies on checked."""
     path = selection_path or SELECTION_PARQUET
     sel = pd.read_parquet(path)
-    need = {"sensor_index", "latitude", "longitude", "frm_km", "tier"}
+    need = {"sensor_index", "latitude", "longitude", "frm_km"}
     missing = need - set(sel.columns)
     if missing:
         raise ValueError(f"selection table {path} missing columns "
@@ -338,9 +338,17 @@ def build_daily(archive_dir=None, selection=None, start=None, end=None):
     n_absent = n_empty = 0
     for i, srow in enumerate(selection.itertuples(index=False), 1):
         si = int(srow.sensor_index)
-        tier = str(srow.tier)
-        path = os.path.join(archive_dir, tier, f"{si}.parquet")
-        if not os.path.exists(path):
+        # A sensor's tier is which archive subdirectory holds its file:
+        # the fetcher assigned tiers at run time and the selection table's
+        # tier column predates that split ('hourly'/'daily' scoping labels),
+        # so disk is the only authoritative record.
+        tier = path = None
+        for t in ("A", "B"):
+            p = os.path.join(archive_dir, t, f"{si}.parquet")
+            if os.path.exists(p):
+                tier, path = t, p
+                break
+        if path is None:
             n_absent += 1
             continue
         raw = pd.read_parquet(path)
@@ -373,7 +381,9 @@ def build_daily(archive_dir=None, selection=None, start=None, end=None):
 def build_pairs_table(daily, selection, aqs_daily):
     """Tier-A QC-passing sensor-days paired to same-day FRM observations.
 
-    Eligibility is the selection table's frm_km <= PAIR_KM gate; a sensor
+    Eligibility is tier-A membership taken from the daily table (which
+    derives it from the archive layout) plus the selection table's
+    frm_km <= PAIR_KM gate; a sensor
     then pairs with EVERY AQS site within PAIR_KM (full haversine matrix;
     eligible sensors x sites is small), matching the v2 pairing semantics
     so the calibration audit and distance histogram stay comparable: one
@@ -398,7 +408,8 @@ def build_pairs_table(daily, selection, aqs_daily):
     aq["date"] = pd.to_datetime(aq["date"]).dt.normalize()
     sites = aq.groupby("site_id")[["lat", "lon"]].median().reset_index()
 
-    elig = selection[(selection["tier"].astype(str) == "A")
+    a_sensors = daily.loc[daily["tier"].astype(str) == "A", "sensor_index"]
+    elig = selection[selection["sensor_index"].isin(set(a_sensors))
                      & (selection["frm_km"].astype(np.float64) <= PAIR_KM)]
     if not len(elig) or not len(sites) or not len(daily):
         return _empty_pairs()
